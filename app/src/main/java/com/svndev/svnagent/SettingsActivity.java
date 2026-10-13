@@ -112,6 +112,30 @@ public class SettingsActivity extends Activity {
         row.addView(back, lp(0, dp(52), 1f, 12));
         root.addView(row, lp(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT, 36));
 
+        TextView reinstall = button("REINSTALL ENGINE", 0xFF00aaff);
+        reinstall.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                v.setEnabled(false);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            new EngineInstaller(SettingsActivity.this).reset();
+                        } catch (Throwable ignored) {}
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                toast("engine reset — open ENGINE to re-download");
+                                v.setEnabled(true);
+                            }
+                        });
+                    }
+                }).start();
+            }
+        });
+        root.addView(reinstall, lp(LinearLayout.LayoutParams.MATCH_PARENT, dp(52), 16));
+
         TextView danger = button("CLEAN RE-BOOTSTRAP", 0xFFff4444);
         danger.setOnClickListener(new View.OnClickListener() {
             @Override

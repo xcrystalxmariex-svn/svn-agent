@@ -138,6 +138,12 @@ public final class EngineInstaller {
         return run(SH, "-c", cmd).contains("STAGED");
     }
 
+    /** Wipe the staged workspace so the next ENGINE open re-downloads it. */
+    public void reset() {
+        String out = run(SH, "-c", "rm -rf " + WORKSPACE + " " + TARBALL + " && echo GONE");
+        Log.i(TAG, "reset: " + out.trim());
+    }
+
     /** Download + stage the runtime. Blocking; call off the UI thread. */
     public void install(Progress cb) throws IOException {
         String url = engineUrl();
