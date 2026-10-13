@@ -59,6 +59,9 @@ public final class EngineInstaller {
 
     private static final String SH = "/system/bin/sh";
 
+    /** Bump whenever the published runtime bundle changes; forces a re-download. */
+    private static final String STAMP = "bundle-v2-dns";
+
     public interface Progress {
         void onProgress(long done, long total);
         void onLog(String line);
@@ -77,9 +80,12 @@ public final class EngineInstaller {
         return url == null ? "" : url.trim();
     }
 
-    /** True when the engine is already staged in the workspace. */
+    /** True when the engine is already staged in the workspace (matching bundle). */
     public boolean isStaged() {
-        return run(SH, "-c", "test -x " + BIN + " && echo STAGED").contains("STAGED");
+        String cmd = "test -x " + BIN
+                + " && [ \"$(cat " + WORKSPACE + "/STAMP 2>/dev/null)\" = \"" + STAMP + "\" ]"
+                + " && echo STAGED";
+        return run(SH, "-c", cmd).contains("STAGED");
     }
 
     /** Download + stage the runtime. Blocking; call off the UI thread. */
@@ -104,6 +110,7 @@ public final class EngineInstaller {
                 "rm -f " + TARBALL + "; " +
                 "chmod 755 \"" + BIN + "\" \"" + SHIM + "\"; " +
                 "chmod -R 755 \"$W/glibc\" 2>/dev/null; " +
+                "echo '" + STAMP + "' > \"$W/STAMP\"; " +
                 "ls -l " + BIN + "; " +
                 "echo STAGE_OK";
         String out = run(SH, "-c", script);

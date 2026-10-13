@@ -66,6 +66,7 @@ runs from a shell-readable dir. Everything is built in **one workspace**:
       glibc/lib/ld-linux-aarch64.so.1   bundled glibc loader + libs (+ gconv)
       shim/claude-resolvfix.so      LD_PRELOAD DNS shim
       etc/cert.pem  etc/resolv.conf CA bundle + nameservers
+      etc/nsswitch.conf  etc/hosts  resolver config (glibc reads these paths)
       home/  tmp/                   runtime scratch
 
 Flow (`ENGINE` cell in the drawer):
