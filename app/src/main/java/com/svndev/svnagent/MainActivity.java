@@ -98,10 +98,10 @@ public class MainActivity extends Activity {
         status.setText("agent ready — select a mode:");
         grid.removeAllViews();
 
-        addItem("UI", "opencode terminal TUI", new View.OnClickListener() {
+        addItem("UI", "opencode web UI", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent i = new Intent(MainActivity.this, TerminalActivity.class);
+                Intent i = new Intent(MainActivity.this, WebUiActivity.class);
                 startActivity(i);
             }
         });

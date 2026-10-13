@@ -22,6 +22,18 @@ public final class EngineLauncher {
     private static final String TAG = "EngineLauncher";
     private static final String SH = "/system/bin/sh";
 
+    /** Basic-auth credentials the embedded WebView uses for the engine. */
+    public static final String SERVER_USER = "opencode";
+    public static final String SERVER_PASSWORD = "svnagent-local";
+
+    private static EngineLauncher INSTANCE;
+
+    /** Process-wide singleton so the engine outlives any one Activity. */
+    public static synchronized EngineLauncher get() {
+        if (INSTANCE == null) INSTANCE = new EngineLauncher();
+        return INSTANCE;
+    }
+
     public interface Sink {
         void onOutput(String chunk);
     }
@@ -41,7 +53,7 @@ public final class EngineLauncher {
 
         final String[] cmd = {
                 EngineInstaller.BIN,
-                "serve",
+                "web",
                 "--hostname", "127.0.0.1",
                 "--port", String.valueOf(port)
         };
@@ -50,6 +62,7 @@ public final class EngineLauncher {
                 "LD_LIBRARY_PATH=" + EngineInstaller.GLIBC_LIB,
                 "SSL_CERT_FILE=" + EngineInstaller.CERT,
                 "CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV,
+                "OPENCODE_SERVER_PASSWORD=" + SERVER_PASSWORD,
                 "HOME=" + EngineInstaller.HOME,
                 "TMPDIR=" + EngineInstaller.TMP,
                 "PATH=/system/bin"

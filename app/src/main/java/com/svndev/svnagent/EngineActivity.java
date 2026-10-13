@@ -40,7 +40,7 @@ public class EngineActivity extends Activity {
     private TextView overlayText;
     private TextView overlayAction;
 
-    private final EngineLauncher launcher = new EngineLauncher();
+    private final EngineLauncher launcher = EngineLauncher.get();
     private EngineInstaller installer;
     private boolean requestedOnce = false;
 

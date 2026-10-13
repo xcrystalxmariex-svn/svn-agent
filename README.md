@@ -78,12 +78,17 @@ Flow (`ENGINE` cell in the drawer):
    `Shizuku.newProcess()`: `mkdir` → `tar xf` → `chmod 755`.
 4. **Launch** directly out of the workspace:
    ```
-   /data/local/tmp/svnagent_opencode/opencode serve --hostname 127.0.0.1 --port 4096
+   /data/local/tmp/svnagent_opencode/opencode web --hostname 127.0.0.1 --port 4096
    ```
    with `LD_PRELOAD=/data/local/tmp/svnagent_opencode/shim/claude-resolvfix.so`,
    `LD_LIBRARY_PATH=.../glibc/lib`, `SSL_CERT_FILE=.../etc/cert.pem`,
-   `CLAUDE_RESOLV_REDIRECT=.../etc/resolv.conf`, `HOME=.../home`; stdout/stderr
-   stream into the console view.
+   `CLAUDE_RESOLV_REDIRECT=.../etc/resolv.conf`, `OPENCODE_SERVER_PASSWORD=...`,
+   `HOME=.../home`; stdout/stderr stream into the console view.
+
+   `web` serves both the HTTP API **and** the browser UI on the same port. The
+   drawer's **UI** cell opens that UI in an **embedded `WebView`**
+   (`WebUiActivity`) at `http://127.0.0.1:4096/` — no external browser. Basic
+   auth is auto-supplied from `EngineLauncher.SERVER_USER/SERVER_PASSWORD`.
 
 ### Hosting the bundle
 
