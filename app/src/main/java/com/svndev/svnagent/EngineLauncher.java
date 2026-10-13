@@ -9,16 +9,18 @@ import java.io.OutputStream;
 import rikka.shizuku.Shizuku;
 
 /**
- * Launches the staged opencode engine via Shizuku and streams its stdout/stderr
- * back to a {@link Sink}. The engine runs as the shell user (UID 2000) from
- * {@code /data/local/tmp/svnagent}.
+ * Launches the staged opencode server out of {@code /data/local/tmp/svnagent_opencode/}
+ * via Shizuku and streams stdout/stderr back to a {@link Sink}.
  *
- * Default invocation (headless server):
- *   /data/local/tmp/svnagent/engine serve --hostname 127.0.0.1 --port 4096
+ * <p>The glibc Bun binary is run with the bundled glibc loader (its ELF
+ * interpreter was patched to {@code glibc/lib/ld-linux-aarch64.so.1}), the DNS
+ * shim preloaded, and an isolated environment that never leaks host runtime
+ * paths.
  */
 public final class EngineLauncher {
 
     private static final String TAG = "EngineLauncher";
+    private static final String SH = "/system/bin/sh";
 
     public interface Sink {
         void onOutput(String chunk);
@@ -38,20 +40,22 @@ public final class EngineLauncher {
         this.sink = sink;
 
         final String[] cmd = {
-                EngineInstaller.TMP_ENGINE,
+                EngineInstaller.BIN,
                 "serve",
                 "--hostname", "127.0.0.1",
                 "--port", String.valueOf(port)
         };
-        // Shizuku's newProcess runs Runtime.exec(cmd, env, dir); the env array
-        // replaces the whole environment, so provide the essentials.
         final String[] env = {
-                "HOME=" + EngineInstaller.TMP_HOME,
-                "TMPDIR=" + EngineInstaller.TMP_HOME,
-                "PATH=/product/bin:/apex/com.android.runtime/bin:/apex/com.android.art/bin:/system/bin:/system/xbin"
+                "LD_PRELOAD=" + EngineInstaller.SHIM,
+                "LD_LIBRARY_PATH=" + EngineInstaller.GLIBC_LIB,
+                "SSL_CERT_FILE=" + EngineInstaller.CERT,
+                "CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV,
+                "HOME=" + EngineInstaller.HOME,
+                "TMPDIR=" + EngineInstaller.TMP,
+                "PATH=/system/bin"
         };
         try {
-            proc = Shizuku.newProcess(cmd, env, EngineInstaller.TMP_DIR);
+            proc = Shizuku.newProcess(cmd, env, EngineInstaller.WORKSPACE);
         } catch (Throwable t) {
             throw new IOException("Shizuku launch failed: " + t.getMessage());
         }

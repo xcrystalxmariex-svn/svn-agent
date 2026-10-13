@@ -3,33 +3,61 @@ package com.svndev.svnagent;
 import android.content.Context;
 import android.util.Log;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.BufferedReader;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.zip.GZIPInputStream;
 
 import rikka.shizuku.Shizuku;
 
 /**
- * Downloads the prebuilt opencode engine (native HttpURLConnection — no curl)
- * into app storage, then stages it into {@code /data/local/tmp} using Shizuku
- * and marks it executable.
+ * Builds the opencode workspace inside {@code /data/local/tmp/svnagent_opencode/}
+ * via Shizuku (shell user, UID 2000). We use /data/local/tmp because the shell
+ * user cannot read the app's private dir; everything the engine needs lives here.
  *
- * Shizuku's shell user cannot read this app's private /data/data dir, so we
- * stream the downloaded bytes through the remote process stdin
- * ({@code sh -c 'cat > /data/local/tmp/svnagent/engine'}) rather than having
- * shell read the file directly.
+ * <p>Flow:
+ * <ol>
+ *   <li>Download the self-contained runtime bundle ({@code .tar.gz}) with a plain
+ *       {@link HttpURLConnection} and gunzip it in-process.</li>
+ *   <li>Stream the resulting {@code .tar} into the shell process
+ *       ({@code /system/bin/sh -c 'cat > .../svnagent_opencode.tar'}) — the app
+ *       cannot write /data/local/tmp directly, but Shizuku can.</li>
+ *   <li>Run a small {@code /system/bin/sh} script through
+ *       {@link Shizuku#newProcess(String[], String[], String)} to untar, chmod,
+ *       and lay out the workspace.</li>
+ * </ol>
+ *
+ * <p>Bundle layout (extracts into the workspace):
+ * <pre>
+ *   opencode                 glibc Bun binary (interpreter patched to the loader below)
+ *   glibc/lib/**             glibc runtime (loader + libs + gconv)
+ *   shim/claude-resolvfix.so DNS shim
+ *   etc/cert.pem             CA bundle (SSL_CERT_FILE)
+ *   etc/resolv.conf          nameservers for the shim
+ *   home/  tmp/              runtime scratch
+ * </pre>
  */
 public final class EngineInstaller {
 
     private static final String TAG = "EngineInstaller";
-    public static final String TMP_DIR = "/data/local/tmp/svnagent";
-    public static final String TMP_ENGINE = TMP_DIR + "/engine";
-    public static final String TMP_HOME = TMP_DIR + "/home";
+
+    /** Proven developer temp space; readable+executable by the Shizuku shell user. */
+    public static final String WORKSPACE = "/data/local/tmp/svnagent_opencode";
+    public static final String TARBALL = "/data/local/tmp/svnagent_opencode.tar";
+    public static final String BIN = WORKSPACE + "/opencode";
+    public static final String SHIM = WORKSPACE + "/shim/claude-resolvfix.so";
+    public static final String GLIBC_LIB = WORKSPACE + "/glibc/lib";
+    public static final String CERT = WORKSPACE + "/etc/cert.pem";
+    public static final String RESOLV = WORKSPACE + "/etc/resolv.conf";
+    public static final String HOME = WORKSPACE + "/home";
+    public static final String TMP = WORKSPACE + "/tmp";
+
+    private static final String SH = "/system/bin/sh";
 
     public interface Progress {
         void onProgress(long done, long total);
@@ -42,54 +70,51 @@ public final class EngineInstaller {
         this.ctx = ctx.getApplicationContext();
     }
 
-    private String prefs(String key, String def) {
-        return ctx.getSharedPreferences("svnagent", Context.MODE_PRIVATE).getString(key, def);
-    }
-
     public String engineUrl() {
-        String url = prefs(SettingsActivity.KEY_ENGINE_URL, SettingsActivity.DEFAULT_ENGINE_URL);
+        String url = ctx.getSharedPreferences("svnagent", Context.MODE_PRIVATE)
+                .getString(SettingsActivity.KEY_ENGINE_URL, SettingsActivity.DEFAULT_ENGINE_URL);
         return url == null ? "" : url.trim();
     }
 
-    /** True when the engine is already staged in /data/local/tmp. */
+    /** True when the engine is already staged in the workspace. */
     public boolean isStaged() {
-        try {
-            Process p = Shizuku.newProcess(
-                    new String[] { "sh", "-c", "test -x " + TMP_ENGINE + " && echo yes" },
-                    null, null);
-            InputStream in = p.getInputStream();
-            int c = in.read();
-            try { p.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-            in.close();
-            return c == 'y';
-        } catch (Throwable t) {
-            return false;
-        }
+        return run(SH, "-c", "test -x " + BIN + " && echo STAGED").contains("STAGED");
     }
 
-    /** Full install: download -> stage -> chmod. Blocking; call off the UI thread. */
+    /** Download + stage the runtime. Blocking; call off the UI thread. */
     public void install(Progress cb) throws IOException {
         String url = engineUrl();
         if (url.isEmpty()) {
             throw new IOException("no engine_url configured (Settings)");
         }
-        File cache = new File(ctx.getFilesDir(), "engine.download");
-        try {
-            log(cb, "downloading " + url);
-            download(new URL(url), cache, cb);
-            log(cb, "download complete (" + cache.length() + " bytes), staging via Shizuku");
-            stage(cache, cb);
-        } finally {
-            if (cache.exists()) {
-                // keep on failure for inspection; delete on success is handled below
-            }
+
+        // 1+2) stream: HTTP -> gunzip -> shell "cat > tarball"
+        log(cb, "downloading runtime bundle…");
+        stageTarball(url, cb);
+
+        // 3) build the workspace with a single shell script
+        log(cb, "extracting + configuring workspace…");
+        String script =
+                "set -e; " +
+                "W=" + WORKSPACE + "; " +
+                "rm -rf \"$W\" \"" + TARBALL + "\".partial; " +
+                "mkdir -p \"$W\"; " +
+                "tar xf " + TARBALL + " -C \"$W\" || { echo TAR_FAIL; exit 1; }; " +
+                "rm -f " + TARBALL + "; " +
+                "chmod 755 \"" + BIN + "\" \"" + SHIM + "\"; " +
+                "chmod -R 755 \"$W/glibc\" 2>/dev/null; " +
+                "ls -l " + BIN + "; " +
+                "echo STAGE_OK";
+        String out = run(SH, "-c", script);
+        log(cb, out.trim());
+        if (!out.contains("STAGE_OK")) {
+            throw new IOException("workspace setup failed:\n" + out.trim());
         }
-        cache.delete();
-        log(cb, "engine installed -> " + TMP_ENGINE);
+        log(cb, "engine ready -> " + BIN);
     }
 
-    private void download(URL url, File dest, Progress cb) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+    private void stageTarball(String url, Progress cb) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setInstanceFollowRedirects(true);
         conn.setConnectTimeout(15000);
         conn.setReadTimeout(600000);
@@ -100,66 +125,91 @@ public final class EngineInstaller {
             throw new IOException("HTTP " + code + " for " + url);
         }
         long total = conn.getContentLength();
-        InputStream in = conn.getInputStream();
-        OutputStream out = new FileOutputStream(dest);
-        byte[] buf = new byte[65536];
+
+        // remote sink: /system/bin/sh -c 'cat > tarball'
+        Process proc;
+        try {
+            proc = Shizuku.newProcess(
+                    new String[] { SH, "-c", "cat > " + TARBALL }, null, "/data/local/tmp");
+        } catch (Throwable t) {
+            conn.disconnect();
+            throw new IOException("Shizuku newProcess(cat) failed: " + t.getMessage());
+        }
+
+        CountingInputStream raw = new CountingInputStream(conn.getInputStream());
+        GZIPInputStream in = new GZIPInputStream(raw, 65536);
+        OutputStream out = proc.getOutputStream();
+        byte[] buf = new byte[131072];
         long done = 0;
         long lastTick = 0;
         int n;
-        while ((n = in.read(buf)) != -1) {
-            out.write(buf, 0, n);
-            done += n;
-            if (cb != null && done - lastTick >= (1 << 20)) {
-                cb.onProgress(done, total);
-                lastTick = done;
+        try {
+            while ((n = in.read(buf)) != -1) {
+                out.write(buf, 0, n);
+                done += n;
+                long read = raw.count;
+                if (cb != null && read - lastTick >= (2 << 20)) {
+                    cb.onProgress(read, total > 0 ? total : read);
+                    lastTick = read;
+                }
             }
+        } finally {
+            try { out.close(); } catch (IOException ignored) {}
+            try { in.close(); } catch (IOException ignored) {}
+            conn.disconnect();
         }
-        out.close();
-        in.close();
-        conn.disconnect();
-        if (cb != null) cb.onProgress(done, total);
-    }
-
-    private void stage(File local, Progress cb) throws IOException {
-        // 1) prepare the staging dir as the shell user
-        shell(new String[] { "sh", "-c", "mkdir -p " + TMP_DIR + " " + TMP_HOME + " && rm -f " + TMP_ENGINE });
-
-        // 2) stream the bytes into the remote process stdin
-        Process proc;
-        try {
-            proc = Shizuku.newProcess(new String[] { "sh", "-c", "cat > " + TMP_ENGINE }, null, TMP_DIR);
-        } catch (Throwable t) {
-            throw new IOException("Shizuku newProcess(cat) failed: " + t.getMessage());
-        }
-        OutputStream os = proc.getOutputStream();
-        InputStream fis = new FileInputStream(local);
-        byte[] buf = new byte[65536];
-        int n;
-        long done = 0;
-        while ((n = fis.read(buf)) != -1) {
-            os.write(buf, 0, n);
-            done += n;
-            if (cb != null && done % (4 << 20) < buf.length) cb.onLog("staged " + done + " bytes");
-        }
-        os.close();
-        fis.close();
         try { proc.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-
-        // 3) make it executable
-        shell(new String[] { "sh", "-c", "chmod 755 " + TMP_ENGINE + " && ls -l " + TMP_ENGINE });
+        if (cb != null) cb.onProgress(total > 0 ? total : done, total > 0 ? total : done);
+        log(cb, "staged tar (" + (done / (1024 * 1024)) + " MB)");
     }
 
-    private void shell(String[] cmd) throws IOException {
+    /** Run a command via Shizuku and return its merged stdout+stderr. */
+    private String run(String... cmd) {
         try {
-            Process proc = Shizuku.newProcess(cmd, null, null);
-            try { proc.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            Process proc = Shizuku.newProcess(cmd, null, "/data/local/tmp");
+            StringBuilder sb = new StringBuilder();
+            BufferedReader r = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+            String line;
+            while ((line = r.readLine()) != null) {
+                sb.append(line).append('\n');
+            }
+            BufferedReader e = new BufferedReader(new InputStreamReader(proc.getErrorStream()));
+            while ((line = e.readLine()) != null) {
+                sb.append(line).append('\n');
+            }
+            try { proc.waitFor(); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+            return sb.toString();
         } catch (Throwable t) {
-            throw new IOException("Shizuku shell failed: " + t.getMessage());
+            Log.w(TAG, "run failed: " + t.getMessage());
+            return "";
         }
     }
 
     private void log(Progress cb, String line) {
         Log.i(TAG, line);
         if (cb != null) cb.onLog(line);
+    }
+
+    /** Counts bytes read from the compressed HTTP stream (for progress). */
+    private static final class CountingInputStream extends FilterInputStream {
+        long count;
+
+        CountingInputStream(InputStream in) {
+            super(in);
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = super.read();
+            if (b != -1) count++;
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            int n = super.read(b, off, len);
+            if (n > 0) count += n;
+            return n;
+        }
     }
 }

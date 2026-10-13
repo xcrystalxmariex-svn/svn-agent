@@ -57,18 +57,49 @@ agent runs on-device inside the app.
 
 ## ENGINE (Shizuku) — how to run opencode on-device
 
-1. Install **Shizuku** and start it (ADB or wireless debugging).
-2. Set the engine download URL in **SETTINGS → engine_url** (a prebuilt
-   arm64 Android/bionic opencode tarball/binary) and optionally `engine_port`
-   (default `4096`).
-3. Open **ENGINE** → grant the Shizuku API permission → it downloads, stages,
-   chmods, and launches the server; boot logs stream into the console.
+opencode is a glibc Bun binary; it runs on Android once (a) its ELF interpreter
+is pointed at a bundled glibc loader, (b) the DNS shim is preloaded, and (c) it
+runs from a shell-readable dir. Everything is built in **one workspace**:
+
+    /data/local/tmp/svnagent_opencode/
+      opencode                      glibc Bun binary, interpreter patched to the loader below
+      glibc/lib/ld-linux-aarch64.so.1   bundled glibc loader + libs (+ gconv)
+      shim/claude-resolvfix.so      LD_PRELOAD DNS shim
+      etc/cert.pem  etc/resolv.conf CA bundle + nameservers
+      home/  tmp/                   runtime scratch
+
+Flow (`ENGINE` cell in the drawer):
+1. **Onboard Shizuku** (install/run Shizuku, grant the API permission).
+2. **Download** the runtime bundle with a plain `HttpURLConnection`; gunzip in
+   Java and stream the tar into the shell as
+   `/system/bin/sh -c 'cat > /data/local/tmp/svnagent_opencode.tar'`
+   (the app cannot write /data/local/tmp itself — Shizuku can).
+3. **Build the workspace** with a `/system/bin/sh` script run via
+   `Shizuku.newProcess()`: `mkdir` → `tar xf` → `chmod 755`.
+4. **Launch** directly out of the workspace:
+   ```
+   /data/local/tmp/svnagent_opencode/opencode serve --hostname 127.0.0.1 --port 4096
+   ```
+   with `LD_PRELOAD=/data/local/tmp/svnagent_opencode/shim/claude-resolvfix.so`,
+   `LD_LIBRARY_PATH=.../glibc/lib`, `SSL_CERT_FILE=.../etc/cert.pem`,
+   `CLAUDE_RESOLV_REDIRECT=.../etc/resolv.conf`, `HOME=.../home`; stdout/stderr
+   stream into the console view.
+
+### Hosting the bundle
+
+The runtime tarball is hosted on the **`dist` branch** of this repo (not an
+external server):
+
+    https://raw.githubusercontent.com/xcrystalxmariex-svn/svn-agent/dist/svnagent-opencode-workspace-aarch64.tar.gz
+
+This is the default **SETTINGS → engine_url**. Regenerate it from the sources in
+`tools/` (opencode 1.19.0 glibc arm64 + Termux glibc 2.44 + the DNS shim).
 
 Notes:
 - The Shizuku server runs as the **shell user (UID 2000)**, which cannot read
-  the app's private `filesDir`, so the engine is staged in `/data/local/tmp`.
-- The binary must be **bionic-runnable** (bionic or static-musl). A glibc
-  build dies on Android with `SIGSYS` even with a repointed ELF interpreter.
+  the app's private `filesDir`; hence `/data/local/tmp`.
+- The binary must be **bionic-runnable OR run under the bundled glibc loader**
+  (as here). A stock glibc binary alone dies on Android with `SIGSYS`.
 - `app/src/main/assets/opencode_project/**` and `tools/build_opencode_bundle.sh`
   are the (superseded) bundled-JS experiment; opencode is a native Bun binary
   and is not bundleable as plain JS.

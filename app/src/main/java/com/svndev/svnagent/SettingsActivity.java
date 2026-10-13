@@ -32,8 +32,10 @@ public class SettingsActivity extends Activity {
     public static final String KEY_ENGINE_PORT = "engine_port";
     public static final String KEY_ENGINE_URL = "engine_url";
 
-    /** Where the prebuilt Android opencode engine tarball is hosted. */
-    public static final String DEFAULT_ENGINE_URL = "";
+    /** Self-contained aarch64 runtime bundle, hosted on the repo's dist branch. */
+    public static final String DEFAULT_ENGINE_URL =
+            "https://raw.githubusercontent.com/xcrystalxmariex-svn/svn-agent/dist/"
+            + "svnagent-opencode-workspace-aarch64.tar.gz";
 
     private SharedPreferences prefs;
     private EditText endpointField;
