@@ -67,7 +67,8 @@ public final class EngineInstaller {
     private final Context ctx;
 
     public EngineInstaller(Context ctx) {
-        this.ctx = ctx.getApplicationContext();
+        Context app = ctx.getApplicationContext();
+        this.ctx = app != null ? app : ctx;
     }
 
     public String engineUrl() {

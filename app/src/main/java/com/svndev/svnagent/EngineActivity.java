@@ -40,8 +40,8 @@ public class EngineActivity extends Activity {
     private TextView overlayText;
     private TextView overlayAction;
 
-    private final EngineInstaller installer;
     private final EngineLauncher launcher = new EngineLauncher();
+    private EngineInstaller installer;
     private boolean requestedOnce = false;
 
     private final Shizuku.OnRequestPermissionResultListener permListener =
@@ -56,13 +56,11 @@ public class EngineActivity extends Activity {
                 }
             };
 
-    public EngineActivity() {
-        installer = new EngineInstaller(this);
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Must be built after attach: getApplicationContext() is null in the ctor.
+        installer = new EngineInstaller(this);
         buildUi();
     }
 
