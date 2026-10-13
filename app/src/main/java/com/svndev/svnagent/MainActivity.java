@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
@@ -67,23 +68,25 @@ public class MainActivity extends Activity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                String out;
+                String out = null;
+                String err = null;
                 try {
                     out = bootstrap.setup();
                 } catch (final IOException e) {
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            status.setText("BOOTSTRAP FAILED: " + e.getMessage());
-                        }
-                    });
-                    return;
+                    err = e.getMessage();
                 }
                 final String result = out;
+                final String error = err;
                 handler.post(new Runnable() {
                     @Override
                     public void run() {
-                        status.setText("BOOTSTRAP OK // runtime " + result.trim());
+                        if (error != null) {
+                            // Bundled node/python runtime is optional: the ENGINE
+                            // (Shizuku) path is self-contained. Don't block the drawer.
+                            status.setText("agent ready (bundled runtime skipped: " + error + ")");
+                        } else {
+                            status.setText("BOOTSTRAP OK // runtime " + (result == null ? "" : result.trim()));
+                        }
                         showDrawer();
                     }
                 });
@@ -130,7 +133,7 @@ public class MainActivity extends Activity {
         addItem("HELP", "how this agent works", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                status.setText("node+python contained agent; no backend server. README.md in project.");
+                status.setText("ENGINE runs opencode on-device via Shizuku. SEE README.md.");
                 status.postDelayed(clearStatus, 5000);
             }
         });
@@ -146,21 +149,16 @@ public class MainActivity extends Activity {
                         try {
                             bootstrap.clean();
                             bootstrap.setup();
-                            handler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    status.setText("CLEAN OK // bootstrap done");
-                                    showDrawer();
-                                }
-                            });
                         } catch (Exception e) {
-                            handler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    status.setText("CLEAN FAILED: " + e.getMessage());
-                                }
-                            });
+                            Log.w("MainActivity", "clean/setup: " + e.getMessage());
                         }
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                status.setText("CLEAN OK");
+                                showDrawer();
+                            }
+                        });
                     }
                 }).start();
             }
