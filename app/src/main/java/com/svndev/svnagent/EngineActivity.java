@@ -253,9 +253,29 @@ public class EngineActivity extends Activity {
 
     private void launchAsync() {
         hideOverlay();
-        terminal.feed("SVN // launching engine (serve, port " + enginePort() + ")…\r\n");
+        final int port = enginePort();
+        terminal.feed("SVN // launching engine (web, port " + port + ")…\r\n");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    installer.refreshResolver();
+                } catch (Throwable t) {
+                    terminalPost("resolver refresh skipped: " + t.getMessage() + "\r\n");
+                }
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        launchEngine(port);
+                    }
+                });
+            }
+        }, "engine-prelaunch").start();
+    }
+
+    private void launchEngine(int port) {
         try {
-            launcher.launch(enginePort(), new EngineLauncher.Sink() {
+            launcher.launch(port, new EngineLauncher.Sink() {
                 @Override
                 public void onOutput(final String chunk) {
                     handler.post(new Runnable() {
@@ -270,6 +290,12 @@ public class EngineActivity extends Activity {
                         @Override public void onClick(View v) { proceed(); }
                     });
         }
+    }
+
+    private void terminalPost(final String s) {
+        handler.post(new Runnable() {
+            @Override public void run() { terminal.feed(s); }
+        });
     }
 
     private void showOverlay(String text, String actionLabel, View.OnClickListener action) {

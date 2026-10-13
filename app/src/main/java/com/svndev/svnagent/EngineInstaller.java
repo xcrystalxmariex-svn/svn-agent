@@ -74,6 +74,48 @@ public final class EngineInstaller {
         this.ctx = app != null ? app : ctx;
     }
 
+    /**
+     * Rewrite the workspace resolver with this device's actual DNS servers
+     * (from ConnectivityManager; falls back to Cloudflare/Google). Hardcoded
+     * 1.1.1.1 fails on networks that block public DNS — using the phone's own
+     * resolvers makes model API calls work on wifi and cellular alike.
+     * Safe to call on every launch; adapts to network changes.
+     */
+    public void refreshResolver() {
+        java.util.List<String> servers = new java.util.ArrayList<>();
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager)
+                    ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                android.net.Network net = cm.getActiveNetwork();
+                if (net != null) {
+                    android.net.LinkProperties lp = cm.getLinkProperties(net);
+                    if (lp != null) {
+                        for (java.net.InetAddress a : lp.getDnsServers()) {
+                            if (a != null && a.getHostAddress() != null && !a.isLinkLocalAddress()) {
+                                servers.add(a.getHostAddress());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "dns detect: " + t.getMessage());
+        }
+        if (servers.isEmpty()) {
+            servers.add("1.1.1.1");
+            servers.add("8.8.8.8");
+        }
+        StringBuilder sb = new StringBuilder("search .\n");
+        for (String s : servers) sb.append("nameserver ").append(s).append('\n');
+        String content = sb.toString().replace("'", "'\\''");
+        String cmd = "mkdir -p " + WORKSPACE + "/etc"
+                + " && printf '%s' '" + content + "' > " + RESOLV
+                + " && echo RESOLV_OK:" + sb.toString().replace("\n", ",").replace(" ", "");
+        String out = run(SH, "-c", cmd);
+        Log.i(TAG, "resolver refresh: " + out.trim());
+    }
+
     public String engineUrl() {
         String url = ctx.getSharedPreferences("svnagent", Context.MODE_PRIVATE)
                 .getString(SettingsActivity.KEY_ENGINE_URL, SettingsActivity.DEFAULT_ENGINE_URL);
