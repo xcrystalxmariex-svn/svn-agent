@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- laptop (app glyph) behind the 7 -->
+    <path
+        android:fillColor="#0e2f1d"
+        android:strokeColor="#00ff66"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M30,30 L76,26 L86,54 L40,58 Z"/>
+    <path
+        android:fillColor="#0e2f1d"
+        android:strokeColor="#00ff66"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M30,57 L86,54 L82,76 L26,78 Z"/>
+    <path
+        android:strokeColor="#00ff66"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M32,60 L84,60"/>
+    <!-- big 7 foreground -->
+    <path
+        android:strokeColor="#00ff66"
+        android:strokeWidth="13"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M30,40 L78,40 L40,84"/>
+</vector>

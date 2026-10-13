@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- SVN suite dark base -->
+    <path
+        android:fillColor="#050b08"
+        android:pathData="M0,0h108v108h-108z"/>
+    <!-- faint tron grid -->
+    <path
+        android:strokeColor="#002c17"
+        android:strokeWidth="1"
+        android:pathData="M27,0v108 M54,0v108 M81,0v108 M0,27h108 M0,54h108 M0,81h108"/>
+    <!-- soft core glow behind the glyph -->
+    <path
+        android:fillColor="#0a2518"
+        android:pathData="M54,14a40,40 0 1,0 0.0001,0z"/>
+</vector>

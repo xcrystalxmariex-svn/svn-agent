@@ -1,0 +1,32 @@
+apply plugin: 'com.android.application'
+
+// A-IDE friendly AGP 3.5.3 / Java 8. 'apply plugin' (not the plugins{} DSL)
+// so resolution stays on the buildscript classpath — works fully offline.
+
+android {
+    compileSdkVersion 33
+
+    defaultConfig {
+        applicationId "com.svndev.svnagent"
+        minSdkVersion 21
+        targetSdkVersion 33
+        versionCode 1
+        versionName "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+    // Intentionally empty: avoids Maven/network dependence in A-IDE.
+    // All native runtime binaries ship as APK assets, extracted at first run.
+}
