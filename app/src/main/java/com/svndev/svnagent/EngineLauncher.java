@@ -63,26 +63,27 @@ public final class EngineLauncher {
             killer.waitFor();
         } catch (Throwable ignored) {}
 
+        // Spawn /system/bin/sh with a CLEAN env: passing LD_PRELOAD etc here makes
+        // the bionic launcher itself try to preload our glibc shim into `sh` and it
+        // dies ("cannot link executable ... verneed[0] in DT_NEEDED"). Instead we
+        // export the glibc vars inside the script so they apply only to opencode.
         final String script =
                 "cd " + EngineInstaller.WORKSPACE + "; "
-                + "rm -f opencode.pid; "
-                + "echo $$ > opencode.pid; "
+                + "rm -f opencode.pid; echo $$ > opencode.pid; "
+                + "export LD_PRELOAD=" + EngineInstaller.SHIM + "; "
+                + "export LD_LIBRARY_PATH=" + EngineInstaller.GLIBC_LIB + "; "
+                + "export SSL_CERT_FILE=" + EngineInstaller.CERT + "; "
+                + "export CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV + "; "
+                + "export HOME=" + EngineInstaller.HOME + "; "
+                + "export TMPDIR=" + EngineInstaller.TMP + "; "
+                + "export PATH=/system/bin; "
                 + "exec " + EngineInstaller.BIN + " web --hostname 127.0.0.1 --port " + port;
         final String[] cmd = { SH, "-c", script };
         // NOTE: no OPENCODE_SERVER_PASSWORD — binding is localhost-only and a
         // password makes the page's own async API calls fail auth (shows up as
         // "Cannot connect to API" in the UI).
-        final String[] env = {
-                "LD_PRELOAD=" + EngineInstaller.SHIM,
-                "LD_LIBRARY_PATH=" + EngineInstaller.GLIBC_LIB,
-                "SSL_CERT_FILE=" + EngineInstaller.CERT,
-                "CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV,
-                "HOME=" + EngineInstaller.HOME,
-                "TMPDIR=" + EngineInstaller.TMP,
-                "PATH=/system/bin"
-        };
         try {
-            proc = Shizuku.newProcess(cmd, env, EngineInstaller.WORKSPACE);
+            proc = Shizuku.newProcess(cmd, null, "/data/local/tmp");
         } catch (Throwable t) {
             throw new IOException("Shizuku launch failed: " + t.getMessage());
         }

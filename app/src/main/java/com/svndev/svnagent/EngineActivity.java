@@ -72,6 +72,19 @@ public class EngineActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
 
         terminal = new TerminalView(this);
+        // Long-press anywhere on the console copies the full session log.
+        terminal.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                String log = terminal.dumpLog();
+                android.content.ClipboardManager cm =
+                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("engine log", log));
+                android.widget.Toast.makeText(EngineActivity.this,
+                        "copied " + log.length() + " chars", android.widget.Toast.LENGTH_SHORT).show();
+                return true;
+            }
+        });
         content.addView(terminal, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
@@ -168,10 +181,24 @@ public class EngineActivity extends Activity {
         }
     }
 
+    /** arm64 check — the embedded engine bundle only ships aarch64. */
+    private static boolean isArm64() {
+        for (String abi : android.os.Build.SUPPORTED_ABIS) {
+            if ("arm64-v8a".equals(abi)) return true;
+        }
+        return false;
+    }
+
     /** Decide what the app needs next: Shizuku, permission, install, or launch. */
     private void proceed() {
         if (launcher.isRunning()) {
             hideOverlay();
+            return;
+        }
+        if (!isArm64()) {
+            showOverlay("Device is not 64-bit ARM — the embedded engine is aarch64 only.\n\nABIs: "
+                    + android.text.TextUtils.join(", ", android.os.Build.SUPPORTED_ABIS),
+                    null, null);
             return;
         }
         if (!ShizukuHelper.binderAvailable()) {

@@ -48,6 +48,10 @@ public class TerminalView extends View {
 
     private final StringBuilder stdin = new StringBuilder();
 
+    /** Everything ever displayed, for copy-to-clipboard (last ~128KB). */
+    private static final int SCROLLBACK_MAX = 128 * 1024;
+    private final StringBuilder scrollback = new StringBuilder();
+
     public TerminalView(Context context) {
         super(context);
         init();
@@ -97,12 +101,26 @@ public class TerminalView extends View {
 
     /** Append raw bytes from the subprocess stdout. */
     public void feed(byte[] data, int len) {
+        track(new String(data, 0, len));
         for (int i = 0; i < len; i++) feed((char) (data[i] & 0xff));
     }
 
     public void feed(String s) {
+        track(s);
         for (int i = 0; i < s.length(); i++) feed(s.charAt(i));
         postInvalidate();
+    }
+
+    private void track(String s) {
+        scrollback.append(s);
+        if (scrollback.length() > SCROLLBACK_MAX) {
+            scrollback.delete(0, scrollback.length() - SCROLLBACK_MAX);
+        }
+    }
+
+    /** Full copyable log of everything printed so far (truncated from the front). */
+    public String dumpLog() {
+        return scrollback.toString();
     }
 
     private void feed(char c) {
