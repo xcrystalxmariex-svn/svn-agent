@@ -259,7 +259,7 @@ public class EngineActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    installer.refreshResolver();
+                    terminalPost(installer.refreshResolver() + "\r\n");
                 } catch (Throwable t) {
                     terminalPost("resolver refresh skipped: " + t.getMessage() + "\r\n");
                 }

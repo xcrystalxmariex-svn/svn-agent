@@ -80,8 +80,10 @@ public final class EngineInstaller {
      * 1.1.1.1 fails on networks that block public DNS — using the phone's own
      * resolvers makes model API calls work on wifi and cellular alike.
      * Safe to call on every launch; adapts to network changes.
+     *
+     * @return human-readable summary of the servers written (for the console).
      */
-    public void refreshResolver() {
+    public String refreshResolver() {
         java.util.List<String> servers = new java.util.ArrayList<>();
         try {
             android.net.ConnectivityManager cm = (android.net.ConnectivityManager)
@@ -114,6 +116,12 @@ public final class EngineInstaller {
                 + " && echo RESOLV_OK:" + sb.toString().replace("\n", ",").replace(" ", "");
         String out = run(SH, "-c", cmd);
         Log.i(TAG, "resolver refresh: " + out.trim());
+        StringBuilder summary = new StringBuilder();
+        for (String s : servers) {
+            if (summary.length() > 0) summary.append(", ");
+            summary.append(s);
+        }
+        return "DNS -> " + summary;
     }
 
     public String engineUrl() {
