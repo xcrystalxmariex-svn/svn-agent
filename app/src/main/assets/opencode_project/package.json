@@ -1,0 +1,8 @@
+{
+  "name": "svn-agent-opencode",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Embedded OpenCode core entry for the SVN Agent Android app (bundled by tools/build_opencode_bundle.sh).",
+  "main": "index.js",
+  "license": "MIT"
+}

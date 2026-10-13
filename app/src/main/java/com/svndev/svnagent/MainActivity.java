@@ -103,6 +103,14 @@ public class MainActivity extends Activity {
             }
         });
 
+        addItem("ENGINE", "Shizuku opencode console", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent i = new Intent(MainActivity.this, EngineActivity.class);
+                startActivity(i);
+            }
+        });
+
         addItem("⚙ SETTINGS", "config, runtime, reset", new View.OnClickListener() {
             @Override
             public void onClick(View v) {

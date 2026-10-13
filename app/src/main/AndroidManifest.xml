@@ -3,6 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
    <application
         android:allowBackup="true"
@@ -10,6 +11,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
 
         <activity
@@ -34,10 +36,23 @@
             android:name=".ImportAgentActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".EngineActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".OpenCodeService"
             android:enabled="true"
             android:exported="false" />
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
     </application>
 

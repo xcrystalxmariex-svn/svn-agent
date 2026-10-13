@@ -8,11 +8,41 @@ android {
 
     defaultConfig {
         applicationId "com.svndev.svnagent"
-        minSdkVersion 21
+        minSdkVersion 24
         targetSdkVersion 33
         versionCode 1
         versionName "1.0"
     }
+
+    // NOTE: the primary engine path is the pure-Java Shizuku pipeline
+    // (EngineActivity -> EngineInstaller -> EngineLauncher), which does NOT
+    // need the NDK. The legacy in-process nodejs-mobile path
+    // (NodeMobile + src/main/cpp/native-lib.cpp) is kept in the tree but is
+    // DISABLED here so the APK builds without NDK/CMake. To re-enable it,
+    // uncomment the two blocks below and ship libnode.so under
+    // app/libnode/bin/arm64-v8a/.
+    //
+    // ndk {
+    //     abiFilters 'arm64-v8a'
+    // }
+    // externalNativeBuild {
+    //     cmake {
+    //         cppFlags ""
+    //         arguments "-DANDROID_STL=c++_shared"
+    //     }
+    // }
+    //
+    // externalNativeBuild {
+    //     cmake {
+    //         path "src/main/cpp/CMakeLists.txt"
+    //     }
+    // }
+    //
+    // sourceSets {
+    //     main {
+    //         jniLibs.srcDirs = ['libnode/bin', 'src/main/jniLibs']
+    //     }
+    // }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -27,6 +57,9 @@ android {
 }
 
 dependencies {
-    // Intentionally empty: avoids Maven/network dependence in A-IDE.
-    // All native runtime binaries ship as APK assets, extracted at first run.
+    // Shizuku: run the downloaded opencode engine as the shell user (UID 2000)
+    // without root. Requires the Shizuku app running (started via ADB/wireless
+    // debugging) and the API permission below.
+    implementation 'dev.rikka.shizuku:api:12.2.0'
+    implementation 'dev.rikka.shizuku:provider:12.2.0'
 }

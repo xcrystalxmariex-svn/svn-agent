@@ -28,12 +28,21 @@ public class SettingsActivity extends Activity {
     public static final String KEY_MODEL = "model";
     public static final String KEY_PROFILE = "profile";
     public static final String KEY_RUNTIME_URL = "runtime_url";
+    public static final String KEY_LIBNODE_URL = "libnode_url";
+    public static final String KEY_ENGINE_PORT = "engine_port";
+    public static final String KEY_ENGINE_URL = "engine_url";
+
+    /** Where the prebuilt Android opencode engine tarball is hosted. */
+    public static final String DEFAULT_ENGINE_URL = "";
 
     private SharedPreferences prefs;
     private EditText endpointField;
     private EditText modelField;
     private EditText profileField;
     private EditText runtimeUrlField;
+    private EditText libnodeUrlField;
+    private EditText enginePortField;
+    private EditText engineUrlField;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private LinearLayout root;
 
@@ -62,6 +71,14 @@ public class SettingsActivity extends Activity {
                 "provider profile");
         runtimeUrlField = addField("runtime_url", prefs.getString(KEY_RUNTIME_URL, ""),
                 "https://.../runtime.tar.gz (blank = bundled only)");
+        libnodeUrlField = addField("libnode_url", prefs.getString(KEY_LIBNODE_URL, ""),
+                "https://.../libnode.so (blank = packaged in jniLibs)");
+        enginePortField = addField("engine_port",
+                prefs.getString(KEY_ENGINE_PORT, String.valueOf(NodeMobile.DEFAULT_ENGINE_PORT)),
+                "embedded node engine HTTP port");
+        engineUrlField = addField("engine_url",
+                prefs.getString(KEY_ENGINE_URL, DEFAULT_ENGINE_URL),
+                "https://.../opencode-aarch64.tgz (Shizuku engine download)");
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -74,6 +91,9 @@ public class SettingsActivity extends Activity {
                         .putString(KEY_MODEL, modelField.getText().toString().trim())
                         .putString(KEY_PROFILE, profileField.getText().toString().trim())
                         .putString(KEY_RUNTIME_URL, runtimeUrlField.getText().toString().trim())
+                        .putString(KEY_LIBNODE_URL, libnodeUrlField.getText().toString().trim())
+                        .putString(KEY_ENGINE_PORT, enginePortField.getText().toString().trim())
+                        .putString(KEY_ENGINE_URL, engineUrlField.getText().toString().trim())
                         .apply();
                 toast("settings saved");
                 finish();

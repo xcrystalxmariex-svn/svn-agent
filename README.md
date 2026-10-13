@@ -43,6 +43,35 @@ agent runs on-device inside the app.
   Run on any machine where a persona's files live; packages a `manifest.json`
   + AGENTS.md + memory/config/agent/assets into a tar.gz persona bundle that
   the app can import. `tools/export_persona.sh OUT_DIR NAME ID [SRC...]`.
+- `app/src/main/java/com/svndev/svnagent/EngineActivity.java`
+  **ENGINE** console (primary on-device engine path). Shizuku onboarding →
+  native `HttpURLConnection` download of a prebuilt Android opencode binary
+  → stage into `/data/local/tmp/svnagent/engine` as the shell user → launch
+  `engine serve --hostname 127.0.0.1 --port 4096` via `Shizuku.newProcess`
+  → stream stdout/stderr into the terminal view. See `ShizukuHelper`,
+  `EngineInstaller`, `EngineLauncher`.
+- `app/src/main/java/com/svndev/svnagent/NodeMobile.java` (legacy/optional)
+  In-process nodejs-mobile engine. **Disabled in `app/build.gradle`** (the
+  NDK/CMake wiring is commented out) because the Shizuku path needs no NDK.
+  Re-enable `src/main/cpp/native-lib.cpp` + `libnode.so` to use it.
+
+## ENGINE (Shizuku) — how to run opencode on-device
+
+1. Install **Shizuku** and start it (ADB or wireless debugging).
+2. Set the engine download URL in **SETTINGS → engine_url** (a prebuilt
+   arm64 Android/bionic opencode tarball/binary) and optionally `engine_port`
+   (default `4096`).
+3. Open **ENGINE** → grant the Shizuku API permission → it downloads, stages,
+   chmods, and launches the server; boot logs stream into the console.
+
+Notes:
+- The Shizuku server runs as the **shell user (UID 2000)**, which cannot read
+  the app's private `filesDir`, so the engine is staged in `/data/local/tmp`.
+- The binary must be **bionic-runnable** (bionic or static-musl). A glibc
+  build dies on Android with `SIGSYS` even with a repointed ELF interpreter.
+- `app/src/main/assets/opencode_project/**` and `tools/build_opencode_bundle.sh`
+  are the (superseded) bundled-JS experiment; opencode is a native Bun binary
+  and is not bundleable as plain JS.
 
 ## Where to put the runtimes (IMPORTANT)
 

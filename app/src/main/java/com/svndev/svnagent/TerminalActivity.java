@@ -31,6 +31,7 @@ public class TerminalActivity extends Activity implements Runnable {
     private Process process;
     private OutputStream procIn;
     private volatile boolean alive = false;
+    private volatile boolean embedded = false;
     private Thread readerThread;
 
     @Override
@@ -97,6 +98,20 @@ public class TerminalActivity extends Activity implements Runnable {
             }
         }
 
+        // Preferred path: the embedded Node.js engine (nodejs-mobile). It runs
+        // the bundled opencode_project/index.js in-process. Imported personas
+        // (their own HOME) still use the subprocess path below.
+        boolean defaultHome = extraHome == null || extraHome.isEmpty();
+        if (defaultHome && NodeMobile.hasProjectAssets(this)) {
+            try {
+                startEmbeddedNode(home);
+                return;
+            } catch (Throwable t) {
+                terminal.feed("\r\n[node engine] " + t.getMessage()
+                        + " — falling back to bundled subprocess\r\n");
+            }
+        }
+
         try {
             ProcessBuilder pb;
             // Imported persona wins: run its own python entry point in its own home.
@@ -123,6 +138,24 @@ public class TerminalActivity extends Activity implements Runnable {
         } catch (IOException e) {
             terminal.feed("\nFATAL: " + e.getMessage() + "\n");
         }
+    }
+
+    /** Boot the in-process Node.js engine and stream its stdio to the view. */
+    private void startEmbeddedNode(File home) throws IOException {
+        NodeMobile.setSink(new NodeMobile.Sink() {
+            @Override
+            public void onOutput(final String chunk) {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        terminal.feed(chunk);
+                    }
+                });
+            }
+        });
+        terminal.feed("SVN // embedded node engine starting (home=" + home.getPath() + ")\r\n");
+        NodeMobile.start(this);
+        embedded = true;
     }
 
     @Override
@@ -155,6 +188,11 @@ public class TerminalActivity extends Activity implements Runnable {
     private void sendInput() {
         String s = input.getText().toString();
         input.setText("");
+        if (embedded) {
+            terminal.feed("> " + s + "\r\n");
+            NodeMobile.sendLine(this, s);
+            return;
+        }
         if (procIn != null && alive) {
             try {
                 // Send only when the process is interactive too.
@@ -175,6 +213,10 @@ public class TerminalActivity extends Activity implements Runnable {
     @Override
     protected void onDestroy() {
         alive = false;
+        NodeMobile.setSink(null);
+        if (embedded) {
+            embedded = false;
+        }
         try { if (process != null) process.destroy(); } catch (Exception ignored) {}
         try { if (procIn != null) procIn.close(); } catch (IOException ignored) {}
         super.onDestroy();
