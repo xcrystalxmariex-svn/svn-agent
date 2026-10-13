@@ -60,7 +60,7 @@ public final class EngineInstaller {
     private static final String SH = "/system/bin/sh";
 
     /** Bump whenever the published runtime bundle changes; forces a re-download. */
-    private static final String STAMP = "bundle-v2-dns";
+    private static final String STAMP = "bundle-v3-elfmagic";
 
     public interface Progress {
         void onProgress(long done, long total);

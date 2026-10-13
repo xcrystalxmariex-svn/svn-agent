@@ -56,6 +56,14 @@ say "assembling workspace"
 W="$B/ws"; mkdir -p "$W/glibc" "$W/shim" "$W/etc" "$W/home" "$W/tmp"
 cp -a "$GL/lib" "$W/glibc/lib"
 rm -f "$W/glibc/lib/"*.o "$W/glibc/lib/"*.a; rm -rf "$W/glibc/lib/audit"
+# ld(1) linker scripts (libc.so, libm.so) are ASCII text; a loader asking for
+# them gets "bad ELF magic". Replace with symlinks to the real shared objects.
+for s in "$W/glibc/lib/"*.so; do
+  if file -b "$s" | grep -q 'ASCII text'; then
+    target="$(sed -n 's/.*GROUP[^()]*([ ]*\([^ /]*\).*/\1/p' "$s" | head -1)"
+    [ -n "$target" ] && [ -f "$W/glibc/lib/$target" ] && ln -sf "$target" "$s" || rm -f "$s"
+  fi
+done
 cp "$B/claude-resolvfix.so" "$W/shim/claude-resolvfix.so"
 curl -fsSL https://curl.se/ca/cacert.pem -o "$W/etc/cert.pem"
 printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > "$W/etc/resolv.conf"
