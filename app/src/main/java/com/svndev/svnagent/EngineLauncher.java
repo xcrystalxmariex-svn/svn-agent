@@ -22,7 +22,7 @@ public final class EngineLauncher {
     private static final String TAG = "EngineLauncher";
     private static final String SH = "/system/bin/sh";
 
-    /** Basic-auth credentials the embedded WebView uses for the engine. */
+    /** Basic-auth credentials the embedded WebView supplies if challenged. */
     public static final String SERVER_USER = "opencode";
     public static final String SERVER_PASSWORD = "svnagent-local";
 
@@ -51,18 +51,32 @@ public final class EngineLauncher {
         if (running) return;
         this.sink = sink;
 
-        final String[] cmd = {
-                EngineInstaller.BIN,
-                "web",
-                "--hostname", "127.0.0.1",
-                "--port", String.valueOf(port)
-        };
+        // Kill any orphaned engine from a previous app install/launch — Shizuku
+        // children outlive the app and would still hold the port. We record the
+        // PID when launching (sh -c 'echo $$ > pidfile; exec …') so teardown is
+        // deterministic — no fragile ps parsing.
+        try {
+            Process killer = Shizuku.newProcess(new String[] { SH, "-c",
+                    "kill -9 \"$(cat " + EngineInstaller.WORKSPACE + "/opencode.pid 2>/dev/null)\" "
+                    + "2>/dev/null; echo CLEAN" },
+                    null, "/data/local/tmp");
+            killer.waitFor();
+        } catch (Throwable ignored) {}
+
+        final String script =
+                "cd " + EngineInstaller.WORKSPACE + "; "
+                + "rm -f opencode.pid; "
+                + "echo $$ > opencode.pid; "
+                + "exec " + EngineInstaller.BIN + " web --hostname 127.0.0.1 --port " + port;
+        final String[] cmd = { SH, "-c", script };
+        // NOTE: no OPENCODE_SERVER_PASSWORD — binding is localhost-only and a
+        // password makes the page's own async API calls fail auth (shows up as
+        // "Cannot connect to API" in the UI).
         final String[] env = {
                 "LD_PRELOAD=" + EngineInstaller.SHIM,
                 "LD_LIBRARY_PATH=" + EngineInstaller.GLIBC_LIB,
                 "SSL_CERT_FILE=" + EngineInstaller.CERT,
                 "CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV,
-                "OPENCODE_SERVER_PASSWORD=" + SERVER_PASSWORD,
                 "HOME=" + EngineInstaller.HOME,
                 "TMPDIR=" + EngineInstaller.TMP,
                 "PATH=/system/bin"

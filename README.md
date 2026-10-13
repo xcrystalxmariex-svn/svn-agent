@@ -77,19 +77,24 @@ Flow (`ENGINE` cell in the drawer):
    (the app cannot write /data/local/tmp itself — Shizuku can).
 3. **Build the workspace** with a `/system/bin/sh` script run via
    `Shizuku.newProcess()`: `mkdir` → `tar xf` → `chmod 755`.
-4. **Launch** directly out of the workspace:
+4. **Launch** directly out of the workspace (via a tiny `sh -c` wrapper that
+   records the PID for deterministic teardown — Shizuku children outlive the
+   app):
    ```
    /data/local/tmp/svnagent_opencode/opencode web --hostname 127.0.0.1 --port 4096
    ```
    with `LD_PRELOAD=/data/local/tmp/svnagent_opencode/shim/claude-resolvfix.so`,
    `LD_LIBRARY_PATH=.../glibc/lib`, `SSL_CERT_FILE=.../etc/cert.pem`,
-   `CLAUDE_RESOLV_REDIRECT=.../etc/resolv.conf`, `OPENCODE_SERVER_PASSWORD=...`,
-   `HOME=.../home`; stdout/stderr stream into the console view.
+   `CLAUDE_RESOLV_REDIRECT=.../etc/resolv.conf` (rewritten each launch with the
+   device's live DNS servers, from ConnectivityManager), `HOME=.../home`;
+   stdout/stderr stream into the console view.
 
    `web` serves both the HTTP API **and** the browser UI on the same port. The
    drawer's **UI** cell opens that UI in an **embedded `WebView`**
-   (`WebUiActivity`) at `http://127.0.0.1:4096/` — no external browser. Basic
-   auth is auto-supplied from `EngineLauncher.SERVER_USER/SERVER_PASSWORD`.
+   (`WebUiActivity`) at `http://127.0.0.1:4096/` — no external browser. The
+   server is **not** password-protected: it binds localhost-only, and a
+   password breaks the page's own async API calls (the WebView answers the
+   main-frame challenge but not the fetch/SSE ones → "Cannot connect to API").
 
 ### Hosting the bundle
 
