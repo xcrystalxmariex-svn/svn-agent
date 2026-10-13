@@ -77,17 +77,16 @@ Flow (`ENGINE` cell in the drawer):
    (the app cannot write /data/local/tmp itself — Shizuku can).
 3. **Build the workspace** with a `/system/bin/sh` script run via
    `Shizuku.newProcess()`: `mkdir` → `tar xf` → `chmod 755`.
-4. **Launch** directly out of the workspace (via a tiny `sh -c` wrapper that
-   records the PID for deterministic teardown — Shizuku children outlive the
-   app):
+4. **Launch** directly out of the workspace — direct exec, **no `sh -c`
+   wrapper** (a wrapping bionic shell would preload the glibc shim into itself
+   and die with “cannot link executable”):
    ```
    /data/local/tmp/svnagent_opencode/opencode web --hostname 127.0.0.1 --port 4096
    ```
-   with `LD_PRELOAD=/data/local/tmp/svnagent_opencode/shim/claude-resolvfix.so`,
-   `LD_LIBRARY_PATH=.../glibc/lib`, `SSL_CERT_FILE=.../etc/cert.pem`,
-   `CLAUDE_RESOLV_REDIRECT=.../etc/resolv.conf` (rewritten each launch with the
-   device's live DNS servers, from ConnectivityManager), `HOME=.../home`;
-   stdout/stderr stream into the console view.
+   with `LD_PRELOAD=.../shim/claude-resolvfix.so`, `LD_LIBRARY_PATH=.../glibc/lib`,
+   `SSL_CERT_FILE=.../etc/cert.pem`, `CLAUDE_RESOLV_REDIRECT=.../etc/resolv.conf`
+   (rewritten each launch with the device's live DNS servers), `HOME=.../home`.
+   Stale engines from prior launches are reaped by `pidof opencode` before start.
 
    `web` serves both the HTTP API **and** the browser UI on the same port. The
    drawer's **UI** cell opens that UI in an **embedded `WebView`**

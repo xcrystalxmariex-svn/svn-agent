@@ -47,43 +47,49 @@ public final class EngineLauncher {
         return running;
     }
 
+    /** Kill stale engine processes from earlier launches (shell, clean env). */
+    private void killOrphans() {
+        try {
+            Process k = Shizuku.newProcess(new String[] { SH, "-c",
+                    "pidof opencode 2>/dev/null | while read -r pp; do "
+                    + "kill -9 $pp 2>/dev/null; done; echo KILLED" },
+                    null, "/data/local/tmp");
+            k.waitFor();
+        } catch (Throwable ignored) {}
+    }
+
     public void launch(int port, Sink sink) throws IOException {
         if (running) return;
         this.sink = sink;
 
         // Kill any orphaned engine from a previous app install/launch — Shizuku
-        // children outlive the app and would still hold the port. We record the
-        // PID when launching (sh -c 'echo $$ > pidfile; exec …') so teardown is
-        // deterministic — no fragile ps parsing.
-        try {
-            Process killer = Shizuku.newProcess(new String[] { SH, "-c",
-                    "kill -9 \"$(cat " + EngineInstaller.WORKSPACE + "/opencode.pid 2>/dev/null)\" "
-                    + "2>/dev/null; echo CLEAN" },
-                    null, "/data/local/tmp");
-            killer.waitFor();
-        } catch (Throwable ignored) {}
+        // children outlive the app and would still hold the port.
+        killOrphans();
 
-        // Spawn /system/bin/sh with a CLEAN env: passing LD_PRELOAD etc here makes
-        // the bionic launcher itself try to preload our glibc shim into `sh` and it
-        // dies ("cannot link executable ... verneed[0] in DT_NEEDED"). Instead we
-        // export the glibc vars inside the script so they apply only to opencode.
-        final String script =
-                "cd " + EngineInstaller.WORKSPACE + "; "
-                + "rm -f opencode.pid; echo $$ > opencode.pid; "
-                + "export LD_PRELOAD=" + EngineInstaller.SHIM + "; "
-                + "export LD_LIBRARY_PATH=" + EngineInstaller.GLIBC_LIB + "; "
-                + "export SSL_CERT_FILE=" + EngineInstaller.CERT + "; "
-                + "export CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV + "; "
-                + "export HOME=" + EngineInstaller.HOME + "; "
-                + "export TMPDIR=" + EngineInstaller.TMP + "; "
-                + "export PATH=/system/bin; "
-                + "exec " + EngineInstaller.BIN + " web --hostname 127.0.0.1 --port " + port;
-        final String[] cmd = { SH, "-c", script };
+        // Direct exec of the binary — NO `sh -c` wrapper. The env array applies
+        // only to opencode, so the glibc LD_PRELOAD/LD_LIBRARY_PATH never touch
+        // a bionic process (a wrapping shell would preload the glibc shim into
+        // /system/bin/sh itself -> "cannot link executable ... DT_NEEDED").
+        final String[] cmd = {
+                EngineInstaller.BIN,
+                "web",
+                "--hostname", "127.0.0.1",
+                "--port", String.valueOf(port)
+        };
+        final String[] env = {
+                "LD_PRELOAD=" + EngineInstaller.SHIM,
+                "LD_LIBRARY_PATH=" + EngineInstaller.GLIBC_LIB,
+                "SSL_CERT_FILE=" + EngineInstaller.CERT,
+                "CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV,
+                "HOME=" + EngineInstaller.HOME,
+                "TMPDIR=" + EngineInstaller.TMP,
+                "PATH=/system/bin"
+        };
         // NOTE: no OPENCODE_SERVER_PASSWORD — binding is localhost-only and a
         // password makes the page's own async API calls fail auth (shows up as
         // "Cannot connect to API" in the UI).
         try {
-            proc = Shizuku.newProcess(cmd, null, "/data/local/tmp");
+            proc = Shizuku.newProcess(cmd, env, EngineInstaller.WORKSPACE);
         } catch (Throwable t) {
             throw new IOException("Shizuku launch failed: " + t.getMessage());
         }
