@@ -138,6 +138,27 @@ public class TermuxActivity extends Activity {
         termBlock.addView(termScroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        // Ensure the terminal always scrolls to the bottom when new text arrives.
+        term.setOnFeedListener(new TerminalView.OnFeedListener() {
+            @Override
+            public void onFeed() {
+                ui.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        termScroll.fullScroll(View.FOCUS_DOWN);
+                    }
+                });
+            }
+        });
+
+        TextView terminalLabel = new TextView(this);
+        terminalLabel.setText("TERMINAL OUTPUT");
+        terminalLabel.setTextColor(0xFF008844);
+        terminalLabel.setTextSize(9);
+        terminalLabel.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
+        terminalLabel.setPadding(0, dp(8), 0, dp(2));
+        termBlock.addView(terminalLabel);
+
         input = new EditText(this);
         input.setHint("type a command, then send");
         input.setHintTextColor(0xFF008844);

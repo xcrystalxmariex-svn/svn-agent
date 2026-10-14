@@ -48,6 +48,16 @@ public class TerminalView extends View {
 
     private final StringBuilder stdin = new StringBuilder();
 
+    public interface OnFeedListener {
+        void onFeed();
+    }
+
+    private OnFeedListener feedListener;
+
+    public void setOnFeedListener(OnFeedListener l) {
+        this.feedListener = l;
+    }
+
     /** Everything ever displayed, for copy-to-clipboard (last ~128KB). */
     private static final int SCROLLBACK_MAX = 128 * 1024;
     private final StringBuilder scrollback = new StringBuilder();
@@ -120,6 +130,7 @@ public class TerminalView extends View {
         track(s);
         for (int i = 0; i < s.length(); i++) feed(s.charAt(i));
         postInvalidate();
+        if (feedListener != null) feedListener.onFeed();
     }
 
     private void track(String s) {
