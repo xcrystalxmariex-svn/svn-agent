@@ -137,10 +137,12 @@ public class VoiceAssistantActivity extends Activity {
     private void buildUi() {
         rootScroll = new ScrollView(this);
         rootScroll.setBackgroundColor(0xFF050b08);
+        rootScroll.setFillViewport(true);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(14), dp(24), dp(14), dp(24));
+        root.setGravity(Gravity.TOP);
         rootScroll.addView(root);
 
         TextView title = label("[ VOICE // DEVICE ASSISTANT ]", COLOR_FG, 16, true);
