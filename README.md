@@ -3,6 +3,26 @@
 Fully-contained opencode agent in an Android APK. No backend server; the
 agent runs on-device inside the app.
 
+Fully-contained opencode agent in an Android APK. No backend server; the
+agent runs on-device inside the app.
+
+## Quick start — pull into A-IDE, build, install
+
+1. In A-IDE: **three-dot menu → Open project / Project → Clone Git repo**,
+   URL `https://github.com/xcrystalxmariex-svn/svn-agent.git`, branch **main**.
+   (Or, if you already have it open: **Git → Pull** to get the latest.)
+2. Let A-IDE sync Gradle (AGP 3.5.3 / Gradle 6.1.1 per `gradle/wrapper`).
+   First sync may need network for the Gradle dist + AGP.
+3. **Build → Build APK** (debug). The app has **no external Maven deps**, so it
+   builds offline once the toolchain is present.
+3. Install the APK, open **SVN Agent** → grant Shizuku, then **ENGINE** to
+   download + launch the on-device opencode runtime.
+4. New in this build: the **MCP/TOOLS** drawer cell (see below).
+
+To pull just the latest changes: open the repo in A-IDE → Git → Pull (branch
+`main`). The previous state is preserved on the `old` branch if you ever need
+to compare or roll back.
+
 ## Build notes
 
 - **Toolchain**: A-IDE friendly. Java sources only use the platform SDK
@@ -11,6 +31,8 @@ agent runs on-device inside the app.
   (the wrapper properties + `apply plugin` style match the buildscript
   classpath approach; `plugins {}` DSL is NOT used for that reason).
 - minSdk 21 / targetSdk 33. Compiles fine offline.
+- A command-line compile check (no SDK build-tools needed) if you just want to
+  verify the Java: `javac -source 8 -target 8 -cp android.jar app/src/main/java/com/svndev/svnagent/*.java`.
 
 ## What's where
 
@@ -189,3 +211,39 @@ everything to filesDir/runtime on first run and chmod +x the binaries.
 4. Any config SeVin wants baked into `opencode.json` (provider/model/token)
    can be generated at first run inside `writeOpencodeConfig()` — or keep
    it as a bundled asset.
+
+## Change log
+
+Newest first. Each entry is a commit on `main`; `old` holds the state before
+the MCP/Tools work.
+
+- **mcp/tools: add MCP servers + on-device local tools sections** — new
+  **MCP/TOOLS** drawer cell. Remote HTTP MCP servers (add form with
+  name/url/optional auth, `SAVE & TEST` handshake caching the tool list,
+  per-server toggle + cached tool sublist). Local tools: curated device
+  functions (open URL, share, dial, SMS, camera, clipboard r/w, vibrate,
+  toast, settings) plus every launchable app, picked via **+ ADD TOOL**, each
+  with a toggle. `McpConfigWriter` writes `etc/mcp.json` and the engine runs
+  with `OPENCODE_CONFIG` (opencode merges it; the model config is preserved);
+  `LocalMcpServer` serves enabled tools to the engine at `127.0.0.1` as
+  `svn_local`. *(not yet device-tested)*
+- **engine: fix getaddrinfo (root cause of "Cannot connect to API")** —
+  glibc bakes `resolv.conf`/`nsswitch.conf`/`hosts` paths into `libc.so.6` and
+  reads them via non-interposable syscalls, so the `LD_PRELOAD` DNS shim never
+  applied and every model call failed. Fixed by binary-patching those three
+  path strings in `libc.so.6` to `/data/local/tmp/svnagent_opencode/etc/...`.
+  Engine bundle v5 (`bundle-v5-resolvpatch`). **Engine now returns real model
+  replies end-to-end.**
+- **engine: on-device netprobe diagnostic + real DNS detection** — an in-app
+  network check that exercises the engine's actual DNS/outbound path, and
+  rewrites the workspace `resolv.conf` from the device's live nameservers.
+- **EngineLauncher: direct exec, no sh wrapper; prune orphans via pidof** —
+  launching through a bionic `sh` wrapper preloaded the glibc shim into the
+  shell itself and died (`CANNOT LINK EXECUTABLE`); stay on direct exec and
+  reap stale engines before start.
+- **Fix bionic poisoning: launch sh with clean env, export glibc vars inside
+  script**.
+- **Bundle v3: libc.so/lib.mo ld-scripts → symlinks (bad ELF magic); bump
+  STAMP**.
+- Earlier: Shizuku onboarding + engine download/stage/launch, in-app WebView
+  UI, terminal view, persona import (`IMPORT AGENT`), settings screen.
