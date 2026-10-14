@@ -197,12 +197,12 @@ public class TermuxActivity extends Activity {
             public void onClick(View v) {
                 if (session != null) session.send("\u0003");
             }
-        }), 0, 1f);
+        }));
         shortcuts.addView(btn("TAB", new View.OnClickListener() {
             public void onClick(View v) {
                 if (session != null) session.send("\t");
             }
-        }), 0, 1f);
+        }));
         shortcuts.addView(btn("CLEAR", new View.OnClickListener() {
             public void onClick(View v) {
                 if (session != null && session.isConnected()) {
@@ -212,12 +212,12 @@ public class TermuxActivity extends Activity {
                     if (term != null) term.reset();
                 }
             }
-        }), 0, 1f);
+        }));
         shortcuts.addView(btn("EXIT", new View.OnClickListener() {
             public void onClick(View v) {
                 if (session != null) session.send("exit\n");
             }
-        }), 0, 1f);
+        }));
 
         termBlock.addView(shortcuts, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));

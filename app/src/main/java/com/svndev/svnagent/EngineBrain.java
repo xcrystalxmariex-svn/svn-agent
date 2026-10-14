@@ -67,6 +67,49 @@ public final class EngineBrain {
         EnginePrefs.prefs(ctx).edit().remove(SESSION_PREF).apply();
     }
 
+    /**
+     * Barge-in: tell the engine to abort whatever the voice session is doing
+     * (tool execution, long generation) so the conversation can pivot
+     * immediately. Fire-and-forget — never blocks, never throws.
+     */
+    public static void abort(Context ctx) {
+        final Context app = ctx.getApplicationContext();
+        final int port = EnginePrefs.enginePort(app);
+        final String sid = EnginePrefs.prefs(app).getString(SESSION_PREF, "");
+        if (sid == null || sid.isEmpty()) {
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                HttpURLConnection conn = null;
+                try {
+                    URL url = new URL("http://127.0.0.1:" + port
+                            + "/session/" + sid + "/abort");
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setConnectTimeout(2000);
+                    conn.setReadTimeout(2000);
+                    conn.setDoOutput(true);
+                    JSONObject body = new JSONObject();
+                    byte[] payload = body.toString().getBytes("UTF-8");
+                    conn.setFixedLengthStreamingMode(payload.length);
+                    OutputStream os = conn.getOutputStream();
+                    os.write(payload);
+                    os.flush();
+                    os.close();
+                    conn.getResponseCode(); // drain; result irrelevant
+                } catch (Throwable ignored) {
+                    // Abort is best-effort: engine may ignore unknown endpoints.
+                } finally {
+                    if (conn != null) {
+                        conn.disconnect();
+                    }
+                }
+            }
+        }, "engine-abort").start();
+    }
+
     private static String session(Context app, int port) throws Exception {
         String sid = EnginePrefs.prefs(app).getString(SESSION_PREF, "");
         if (sid != null && !sid.isEmpty()) {

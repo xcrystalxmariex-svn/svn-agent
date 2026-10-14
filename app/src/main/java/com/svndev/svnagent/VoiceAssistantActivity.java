@@ -250,6 +250,8 @@ public class VoiceAssistantActivity extends Activity {
                 switch (e.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
                         pttHeld = true;
+                        // Barge-in: kill any in-flight engine generation and TTS.
+                        EngineBrain.abort(VoiceAssistantActivity.this);
                         tts.stop();
                         speaking = false;
                         startListening();
@@ -327,7 +329,15 @@ public class VoiceAssistantActivity extends Activity {
                 restoreListener();
             }
             @Override public void onReadyForSpeech(Bundle p) {}
-            @Override public void onBeginningOfSpeech() {}
+        @Override public void onBeginningOfSpeech() {
+            // Barge-in: user started talking while the agent was speaking —
+            // stop TTS and abort any in-flight engine work immediately.
+            if (speaking || awaitingReply) {
+                tts.stop();
+                speaking = false;
+                EngineBrain.abort(VoiceAssistantActivity.this);
+            }
+        }
             @Override public void onRmsChanged(float v) {}
             @Override public void onBufferReceived(byte[] b) {}
             @Override public void onEndOfSpeech() {}
@@ -434,7 +444,10 @@ public class VoiceAssistantActivity extends Activity {
                         appendTranscript("Agent: " + reply);
                         callStatus.setText("speaking…");
                         speaking = true;
-                        tts.speak(reply, new VoiceTts.SpeakListener() {
+                        // Strip markdown/code before TTS so it never reads
+                        // "backtick backtick" out loud.
+                        String spoken = VoiceTextCleaner.clean(reply);
+                        tts.speak(spoken, new VoiceTts.SpeakListener() {
                             @Override public void onDone() {
                                 handler.post(new Runnable() {
                                     @Override public void run() {
