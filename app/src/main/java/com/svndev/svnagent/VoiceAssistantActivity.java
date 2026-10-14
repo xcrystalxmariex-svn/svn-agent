@@ -47,7 +47,7 @@ public class VoiceAssistantActivity extends Activity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    private ScrollView rootScroll;
+    private LinearLayout root;
     private TextView wakeToggle;
     private LinearLayout wakeSetup;
     private TextView wakeStatus;
@@ -135,11 +135,11 @@ public class VoiceAssistantActivity extends Activity {
     // ------------------------------------------------------------------
 
     private void buildUi() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xFF050b08);
-        root.setPadding(dp(14), dp(24), dp(14), dp(24));
-        setContentView(root);
+        this.root = new LinearLayout(this);
+        this.root.setOrientation(LinearLayout.VERTICAL);
+        this.root.setBackgroundColor(0xFF050b08);
+        this.root.setPadding(dp(14), dp(24), dp(14), dp(24));
+        setContentView(this.root);
 
         TextView title = label("[ VOICE // DEVICE ASSISTANT ]", COLOR_FG, 16, true);
         root.addView(title, wrap(dp(4)));

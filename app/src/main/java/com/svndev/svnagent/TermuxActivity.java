@@ -30,6 +30,7 @@ public class TermuxActivity extends Activity {
 
     private static final int REQ_PERM = 4701;
     private static final int TERMUX_PORT = 9001;
+    private static final int TERM_HEIGHT_DP = 250;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private TextView status;
@@ -58,21 +59,23 @@ public class TermuxActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xFF050b08);
-        root.setPadding(dp(14), dp(16), dp(14), dp(10));
+        root.setPadding(dp(12), dp(12), dp(12), dp(8));
 
         TextView title = new TextView(this);
         title.setText("TERMUX // LOCAL LINUX");
         title.setTextColor(0xFF00ff66);
-        title.setTextSize(16);
+        title.setTextSize(18);
         title.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
-        root.addView(title);
+        root.addView(title, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         status = new TextView(this);
         status.setTextColor(0xFF00cc55);
-        status.setTextSize(11);
+        status.setTextSize(12);
         status.setTypeface(android.graphics.Typeface.MONOSPACE);
-        status.setPadding(0, dp(6), 0, dp(8));
-        root.addView(status);
+        status.setPadding(0, dp(4), 0, dp(8));
+        root.addView(status, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.VERTICAL);
@@ -112,7 +115,8 @@ public class TermuxActivity extends Activity {
                 runOneShot(s);
             }
         }));
-        root.addView(buttons);
+        root.addView(buttons, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         TextView help = new TextView(this);
         help.setText("one-time setup — in Termux run:\n"
@@ -122,21 +126,22 @@ public class TermuxActivity extends Activity {
                 + "then grant the permission above. START SESSION installs socat on\n"
                 + "first use (needs Termux network); RUN COMMAND works without it.");
         help.setTextColor(0xFF008844);
-        help.setTextSize(9);
+        help.setTextSize(10);
         help.setTypeface(android.graphics.Typeface.MONOSPACE);
-        help.setPadding(0, dp(8), 0, dp(8));
-        root.addView(help);
+        help.setPadding(0, dp(6), 0, dp(6));
+        root.addView(help, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         termBlock = new LinearLayout(this);
         termBlock.setOrientation(LinearLayout.VERTICAL);
-        termBlock.setVisibility(View.VISIBLE);
 
+        // The terminal output box — fixed height so it cannot collapse to 0.
         ScrollView termScroll = new ScrollView(this);
         term = new TerminalView(this);
         termScroll.addView(term, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(300)));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(TERM_HEIGHT_DP)));
         termBlock.addView(termScroll, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(300)));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(TERM_HEIGHT_DP), 0f));
 
         // Ensure the terminal always scrolls to the bottom when new text arrives.
         term.setOnFeedListener(new TerminalView.OnFeedListener() {
@@ -154,10 +159,11 @@ public class TermuxActivity extends Activity {
         TextView terminalLabel = new TextView(this);
         terminalLabel.setText("TERMINAL OUTPUT");
         terminalLabel.setTextColor(0xFF008844);
-        terminalLabel.setTextSize(9);
+        terminalLabel.setTextSize(10);
         terminalLabel.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
-        terminalLabel.setPadding(0, dp(8), 0, dp(2));
-        termBlock.addView(terminalLabel);
+        terminalLabel.setPadding(0, dp(6), 0, dp(2));
+        termBlock.addView(terminalLabel, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         input = new EditText(this);
         input.setHint("type a command, then send");
@@ -165,7 +171,7 @@ public class TermuxActivity extends Activity {
         input.setTextColor(0xFF00ff66);
         input.setBackgroundColor(0xFF0a140d);
         input.setTypeface(android.graphics.Typeface.MONOSPACE);
-        input.setTextSize(13);
+        input.setTextSize(14);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                 | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
         input.setSingleLine(true);
@@ -185,16 +191,18 @@ public class TermuxActivity extends Activity {
 
         LinearLayout shortcuts = new LinearLayout(this);
         shortcuts.setOrientation(LinearLayout.HORIZONTAL);
+        shortcuts.setGravity(Gravity.CENTER_VERTICAL);
+
         shortcuts.addView(btn("CTRL-C", new View.OnClickListener() {
             public void onClick(View v) {
                 if (session != null) session.send("\u0003");
             }
-        }));
+        }), 0, 1f);
         shortcuts.addView(btn("TAB", new View.OnClickListener() {
             public void onClick(View v) {
                 if (session != null) session.send("\t");
             }
-        }));
+        }), 0, 1f);
         shortcuts.addView(btn("CLEAR", new View.OnClickListener() {
             public void onClick(View v) {
                 if (session != null && session.isConnected()) {
@@ -204,13 +212,15 @@ public class TermuxActivity extends Activity {
                     if (term != null) term.reset();
                 }
             }
-        }));
+        }), 0, 1f);
         shortcuts.addView(btn("EXIT", new View.OnClickListener() {
             public void onClick(View v) {
                 if (session != null) session.send("exit\n");
             }
-        }));
-        termBlock.addView(shortcuts);
+        }), 0, 1f);
+
+        termBlock.addView(shortcuts, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         root.addView(termBlock, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -223,9 +233,6 @@ public class TermuxActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refresh();
-        // Render the shared console history, then follow live appends. This makes
-        // the panel the place to review agent Termux activity (no jumping to the
-        // real Termux app).
         if (term != null) {
             term.reset();
             term.feed(TermuxConsole.snapshot());
@@ -334,7 +341,6 @@ public class TermuxActivity extends Activity {
             Toast.makeText(this, "Grant RUN_COMMAND permission first", Toast.LENGTH_SHORT).show();
             return;
         }
-        termBlock.setVisibility(View.VISIBLE);
         TermuxConsole.append("\n[svn-agent] starting Termux session on 127.0.0.1:" + TERMUX_PORT + " ...\n");
         if (session != null) {
             session.stopServer();
@@ -384,7 +390,7 @@ public class TermuxActivity extends Activity {
         input.setText("");
         if (s.isEmpty()) return;
 
-        TermuxConsole.append("\n> " + s + "\n");
+        TermuxConsole.command(s);
         if (session != null && session.isConnected()) {
             session.send(s + "\n");
         } else {
@@ -402,11 +408,6 @@ public class TermuxActivity extends Activity {
             Toast.makeText(this, "Grant RUN_COMMAND permission first", Toast.LENGTH_SHORT).show();
             return;
         }
-        termBlock.setVisibility(View.VISIBLE);
-        
-        // Echo the command so the user sees it in the output box
-        TermuxConsole.append("\n> " + cmd + "\n");
-        
         new Thread(new Runnable() {
             public void run() {
                 String[] r = TermuxManager.runShellSync(TermuxActivity.this, cmd, 120000);
@@ -427,7 +428,7 @@ public class TermuxActivity extends Activity {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextSize(11);
+        b.setTextSize(12);
         b.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
         b.setGravity(Gravity.CENTER);
         b.setTextColor(0xFF050b08);
@@ -437,7 +438,26 @@ public class TermuxActivity extends Activity {
         b.setBackground(d);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, dp(3), 0, dp(3));
+        lp.setMargins(0, dp(2), 0, dp(2));
+        b.setLayoutParams(lp);
+        b.setOnClickListener(l);
+        return b;
+    }
+
+    private Button btn(String label, View.OnClickListener l, int width, float weight) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTextSize(10);
+        b.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
+        b.setGravity(Gravity.CENTER);
+        b.setTextColor(0xFF050b08);
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setColor(0xFF00cc55);
+        d.setCornerRadius(dp(4));
+        b.setBackground(d);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(width, LinearLayout.LayoutParams.WRAP_CONTENT, weight);
+        lp.setMargins(dp(2), dp(2), dp(2), dp(2));
         b.setLayoutParams(lp);
         b.setOnClickListener(l);
         return b;
