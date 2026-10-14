@@ -130,6 +130,14 @@ public class MainActivity extends Activity {
             }
         });
 
+        addItem("TERMUX", "local linux shell", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent i = new Intent(MainActivity.this, TermuxActivity.class);
+                startActivity(i);
+            }
+        });
+
         addItem("STATUS", "agent health readout", new View.OnClickListener() {
             @Override
             public void onClick(View v) {

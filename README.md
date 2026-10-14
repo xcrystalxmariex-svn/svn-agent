@@ -17,7 +17,7 @@ agent runs on-device inside the app.
    builds offline once the toolchain is present.
 3. Install the APK, open **SVN Agent** → grant Shizuku, then **ENGINE** to
    download + launch the on-device opencode runtime.
-4. New in this build: the **MCP/TOOLS** drawer cell (see below).
+4. New in this build: the **TERMUX** drawer cell (see below).
 
 To pull just the latest changes: open the repo in A-IDE → Git → Pull (branch
 `main`). The previous state is preserved on the `old` branch if you ever need
@@ -85,7 +85,17 @@ to compare or roll back.
 - `app/src/main/java/com/svndev/svnagent/LocalMcpServer.java`
   App-hosted localhost MCP server that serves the enabled `DeviceTools`.
 - `app/src/main/java/com/svndev/svnagent/DeviceTools.java`
-  Catalog of on-device tool definitions (device functions + installed apps).
+  Catalog of on-device tool definitions (device functions, Termux, installed
+  apps).
+- `app/src/main/java/com/svndev/svnagent/TermuxActivity.java`
+  **TERMUX** screen: detect/install Termux, walk the `RUN_COMMAND` permission
+  setup, and host the interactive in-app terminal (see below).
+- `app/src/main/java/com/svndev/svnagent/TermuxManager.java`
+  Bridge to Termux via `com.termux.RUN_COMMAND` (fire-and-collect-result) plus
+  the `termux:run` shell helper.
+- `app/src/main/java/com/svndev/svnagent/TermuxSession.java`
+  Interactive session: starts a loopback `socat` PTY in Termux and pipes the
+  socket to `TerminalView`.
 - `app/src/main/java/com/svndev/svnagent/NodeMobile.java` (legacy/optional)
   In-process nodejs-mobile engine. **Disabled in `app/build.gradle`** (the
   NDK/CMake wiring is commented out) because the Shizuku path needs no NDK.
@@ -172,6 +182,35 @@ to the engine by `LocalMcpServer`, a dependency-free MCP server the app hosts on
 `http://127.0.0.1:<local_mcp_port>/mcp`, registered in the config as
 `svn_local`. Toggles take effect on the **next engine start**.
 
+## TERMUX
+
+The drawer's **TERMUX** cell connects the agent to a locally-installed
+[Termux](https://f-droid.org/packages/com.termux/) app — a real Linux
+environment on the phone. This is the agent's escape hatch for anything the
+sandboxed app can't do: local file access, `ssh`, `git`, `pkg install`, scripts,
+and even `adb`/`rish` when wireless debugging is looped back.
+
+One-time setup (the cell walks you through it):
+
+1. **INSTALL TERMUX** (F-Droid; also from f-droid.org).
+2. In Termux, allow external apps and reload:
+   `echo allow-external-apps=true >> ~/.termux/termux.properties && termux-reload-settings`
+2. **GRANT RUN_COMMAND PERMISSION** in this panel.
+3. **TEST CONNECTION**, then **START / RESTART SESSION**.
+
+How it works: two apps can't share a uid, so the only bridge is Termux's
+`com.termux.RUN_COMMAND` service (`TermuxManager` sends the intent, attaches a
+`Result` `PendingIntent`, and reads back exit code + stdout/stderr). **One-shot**
+commands go through `TermuxManager.runShellSync`. The **interactive terminal**
+runs `socat` inside Termux to expose a login shell on `127.0.0.1:9001`
+(auto-installs `socat` on first run); the app connects with a plain socket and
+pipes it into `TerminalView` (`TermuxSession`).
+
+The agent gets it as a local tool: **`termux:run`** (category *Termux*) — enable
+it in **MCP/TOOLS → + ADD TOOL**. It runs a shell command in Termux and returns
+the output, so the agent can do files, SSH, `pkg`, and (with wireless debugging
+looped back) `adb`/`rish` without leaving the app.
+
 ## Where to put the runtimes (IMPORTANT)
 
 The APK expects these to exist under `app/src/main/assets/runtime/` before
@@ -217,6 +256,16 @@ everything to filesDir/runtime on first run and chmod +x the binaries.
 Newest first. Each entry is a commit on `main`; `old` holds the state before
 the MCP/Tools work.
 
+- **termux: local Linux shell bridge + agent tool** — new **TERMUX** drawer
+  cell. Detect/install Termux (F-Droid), grant `com.termux.permission.RUN_COMMAND`,
+  and start an interactive in-app terminal backed by a real Termux shell
+  (`TermuxManager` fires `com.termux.RUN_COMMAND` with a result `PendingIntent`;
+  `TermuxSession` runs a loopback `socat` PTY on `127.0.0.1:9001`, installing
+  socat on first use). Adds the `termux:run` **local tool** so the agent can run
+  commands in Termux (files, ssh, git, `pkg`, and adb/rish via wireless
+  debugging) — it appears under **MCP/TOOLS** local tools. Manifest gains the
+  RUN_COMMAND permission + a `<queries>` entry for `com.termux`. *(not yet
+  device-tested)*
 - **mcp/tools: add MCP servers + on-device local tools sections** — new
   **MCP/TOOLS** drawer cell. Remote HTTP MCP servers (add form with
   name/url/optional auth, `SAVE & TEST` handshake caching the tool list,

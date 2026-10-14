@@ -196,6 +196,52 @@ public final class DeviceTools {
         return list;
     }
 
+    /** Termux-backed tools (a real Linux shell on the device). */
+    public static List<ToolDef> termuxTools(Context ctx) {
+        final Context app = ctx.getApplicationContext();
+        List<ToolDef> list = new ArrayList<>();
+
+        list.add(new ToolDef("termux:run", "Termux: run command", "Termux",
+                "Run a shell command inside the local Termux (Linux) environment and return "
+                        + "its combined output. Use for anything needing a real terminal: files, "
+                        + "pkg installs, ssh, git, scripts, and adb/rish when wireless debugging is "
+                        + "enabled. Requires Termux installed + the RUN_COMMAND permission granted "
+                        + "in the TERMUX panel.",
+                schema("command", "string", "Shell command to run in Termux", true),
+                new Executor() {
+                    public String execute(JSONObject a) throws Exception {
+                        String cmd = a.optString("command", "");
+                        if (cmd.isEmpty()) {
+                            return "no command provided";
+                        }
+                        if (!TermuxManager.isInstalled(app)) {
+                            return "Termux is not installed";
+                        }
+                        if (!TermuxManager.hasRunCommandPermission(app)) {
+                            return "Termux RUN_COMMAND permission not granted (open the TERMUX panel)";
+                        }
+                        String[] r = TermuxManager.runShellSync(app, cmd, 120000);
+                        String out = r[1] == null ? "" : r[1];
+                        String err = r[2] == null ? "" : r[2];
+                        String em = r[3] == null ? "" : r[3];
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("exit=").append(r[0]).append('\n');
+                        if (!out.isEmpty()) {
+                            sb.append(out);
+                        }
+                        if (!err.isEmpty()) {
+                            sb.append(err);
+                        }
+                        if (!em.isEmpty()) {
+                            sb.append("[termux] ").append(em);
+                        }
+                        return sb.toString().trim();
+                    }
+                }));
+
+        return list;
+    }
+
     /** Installed launchable apps, one tool per package. */
     public static List<ToolDef> installedApps(Context ctx) {
         final Context app = ctx.getApplicationContext();
@@ -231,10 +277,11 @@ public final class DeviceTools {
         return out;
     }
 
-    /** All available local tools (device functions first, then apps). */
+    /** All available local tools (device functions, Termux, then apps). */
     public static List<ToolDef> available(Context ctx) {
         List<ToolDef> all = new ArrayList<>();
         all.addAll(deviceFunctions(ctx));
+        all.addAll(termuxTools(ctx));
         all.addAll(installedApps(ctx));
         return all;
     }

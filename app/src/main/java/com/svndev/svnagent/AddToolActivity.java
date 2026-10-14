@@ -64,8 +64,10 @@ public class AddToolActivity extends Activity {
         String lastCat = null;
         for (DeviceTools.ToolDef t : all) {
             if (!t.category.equals(lastCat)) {
-                root.addView(sectionHeader(t.category.equals("Device")
-                        ? "DEVICE FUNCTIONS" : "APPS"));
+                String header = t.category.equals("Device") ? "DEVICE FUNCTIONS"
+                        : t.category.equals("Apps") ? "APPS"
+                        : t.category.toUpperCase();
+                root.addView(sectionHeader(header));
                 lastCat = t.category;
             }
             root.addView(toolBox(t));
