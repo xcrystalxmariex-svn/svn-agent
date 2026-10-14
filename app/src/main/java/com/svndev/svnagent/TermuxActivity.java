@@ -88,13 +88,26 @@ public class TermuxActivity extends Activity {
                 startSession();
             }
         }));
+        buttons.addView(btn("RUN COMMAND (one-shot, no socat needed)", new View.OnClickListener() {
+            public void onClick(View v) {
+                String s = input.getText().toString().trim();
+                if (s.isEmpty()) {
+                    Toast.makeText(TermuxActivity.this, "type a command above", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                input.setText("");
+                runOneShot(s);
+            }
+        }));
         root.addView(buttons);
 
         TextView help = new TextView(this);
         help.setText("one-time setup — in Termux run:\n"
+                + "  mkdir -p ~/.termux\n"
                 + "  echo allow-external-apps=true >> ~/.termux/termux.properties\n"
-                + "  termux-reload-settings\n"
-                + "then grant the permission above and START SESSION.");
+                + "  termux-reload-settings      (then force-stop & reopen Termux)\n"
+                + "then grant the permission above. START SESSION installs socat on\n"
+                + "first use (needs Termux network); RUN COMMAND works without it.");
         help.setTextColor(0xFF008844);
         help.setTextSize(9);
         help.setTypeface(android.graphics.Typeface.MONOSPACE);
@@ -316,12 +329,39 @@ public class TermuxActivity extends Activity {
 
     private void submitInput() {
         String s = input.getText().toString();
-        if (session == null || !session.isConnected()) {
-            Toast.makeText(this, "start a session first", Toast.LENGTH_SHORT).show();
+        input.setText("");
+        if (session != null && session.isConnected()) {
+            session.send(s + "\n");
+        } else {
+            runOneShot(s);
+        }
+    }
+
+    /** Run a single command through RUN_COMMAND and print its output (no socat). */
+    private void runOneShot(final String cmd) {
+        if (!TermuxManager.isInstalled(this)) {
+            Toast.makeText(this, "Install Termux first", Toast.LENGTH_SHORT).show();
             return;
         }
-        session.send(s + "\n");
-        input.setText("");
+        if (!TermuxManager.hasRunCommandPermission(this)) {
+            Toast.makeText(this, "Grant RUN_COMMAND permission first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        termBlock.setVisibility(View.VISIBLE);
+        term.feed("\n$ " + cmd + "\n");
+        new Thread(new Runnable() {
+            public void run() {
+                final String[] r = TermuxManager.runShellSync(TermuxActivity.this, cmd, 120000);
+                ui.post(new Runnable() {
+                    public void run() {
+                        if (r[1] != null && r[1].length() > 0) term.feed(r[1]);
+                        if (r[2] != null && r[2].length() > 0) term.feed(r[2]);
+                        if (r[3] != null && r[3].length() > 0) term.feed("[error: " + r[3] + "]\n");
+                        term.feed("[exit " + r[0] + "]\n");
+                    }
+                });
+            }
+        }).start();
     }
 
     @Override

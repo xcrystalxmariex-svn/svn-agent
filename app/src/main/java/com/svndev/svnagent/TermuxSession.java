@@ -59,15 +59,18 @@ public final class TermuxSession {
     public boolean start(final int port, final Listener cb) {
         this.port = port;
 
-        String[] chk = TermuxManager.runShellSync(ctx, "command -v socat", 15000);
-        boolean haveSocat = chk[1] != null && chk[1].trim().length() > 0;
-        if (!haveSocat) {
-            cb.onOutput(("installing socat (first run)...\n").getBytes(), 30);
-            TermuxManager.runShellSync(ctx, "pkg install -y socat", 180000);
-            chk = TermuxManager.runShellSync(ctx, "command -v socat", 15000);
-            haveSocat = chk[1] != null && chk[1].trim().length() > 0;
-            if (!haveSocat) {
-                cb.onClosed("socat could not be installed (check Termux network / storage)");
+        if (!hasSocat(ctx)) {
+            emit(cb, "socat not found - installing (first run, may take a minute)...\n");
+            String[] ir = TermuxManager.runShellSync(ctx,
+                    "pkg install -y socat 2>&1 || { pkg update -y 2>&1; pkg install -y socat 2>&1; }",
+                    300000);
+            if (ir[1] != null && ir[1].length() > 0) emit(cb, ir[1]);
+            if (ir[2] != null && ir[2].length() > 0) emit(cb, ir[2]);
+            if (ir[3] != null && ir[3].length() > 0) emit(cb, "[" + ir[3] + "]\n");
+            if (!hasSocat(ctx)) {
+                cb.onClosed("socat could not be installed - see output above. Needs a Termux "
+                        + "network connection; to install manually open Termux and run: "
+                        + "pkg install -y socat");
                 return false;
             }
         }
@@ -133,6 +136,25 @@ public final class TermuxSession {
         reader.start();
         cb.onReady();
         return true;
+    }
+
+    /**
+     * True iff Termux has an executable {@code socat}. Uses the shell exit
+     * status of {@code test -x} — NOT stdout, which can carry login banners and
+     * produce false positives.
+     */
+    private static boolean hasSocat(Context ctx) {
+        String[] r = TermuxManager.runShellSync(ctx,
+                "test -x " + TermuxManager.PREFIX + "/bin/socat", 15000);
+        return r[0] != null && r[0].equals("0");
+    }
+
+    private static void emit(Listener cb, String s) {
+        if (s == null || s.isEmpty()) {
+            return;
+        }
+        byte[] b = s.getBytes();
+        cb.onOutput(b, b.length);
     }
 
     /** Send text to the shell (add "\n" to submit a line). */
