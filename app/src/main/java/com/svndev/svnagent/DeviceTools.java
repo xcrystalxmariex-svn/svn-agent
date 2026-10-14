@@ -220,7 +220,9 @@ public final class DeviceTools {
                         if (!TermuxManager.hasRunCommandPermission(app)) {
                             return "Termux RUN_COMMAND permission not granted (open the TERMUX panel)";
                         }
+                        TermuxConsole.command(cmd);
                         String[] r = TermuxManager.runShellSync(app, cmd, 120000);
+                        TermuxConsole.result(r[0], r[1], r[2], r[3]);
                         String out = r[1] == null ? "" : r[1];
                         String err = r[2] == null ? "" : r[2];
                         String em = r[3] == null ? "" : r[3];

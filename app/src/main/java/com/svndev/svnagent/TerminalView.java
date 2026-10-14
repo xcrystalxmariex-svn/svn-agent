@@ -99,6 +99,17 @@ public class TerminalView extends View {
         }
     }
 
+    /** Clear the visible screen (and scrollback) so a fresh snapshot can be fed. */
+    public void reset() {
+        resetScreen();
+        scrollback.setLength(0);
+        inEsc = false;
+        inOsc = false;
+        inCsi = false;
+        csi.setLength(0);
+        postInvalidate();
+    }
+
     /** Append raw bytes from the subprocess stdout. */
     public void feed(byte[] data, int len) {
         track(new String(data, 0, len));

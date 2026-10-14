@@ -38,6 +38,19 @@ public class TermuxActivity extends Activity {
     private LinearLayout termBlock;
     private TermuxSession session;
 
+    /** Live link to {@link TermuxConsole}: agent + session output appears here. */
+    private final TermuxConsole.Sink sink = new TermuxConsole.Sink() {
+        public void onAppend(final String text) {
+            ui.post(new Runnable() {
+                public void run() {
+                    if (term != null) {
+                        term.feed(text);
+                    }
+                }
+            });
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -116,7 +129,7 @@ public class TermuxActivity extends Activity {
 
         termBlock = new LinearLayout(this);
         termBlock.setOrientation(LinearLayout.VERTICAL);
-        termBlock.setVisibility(View.GONE);
+        termBlock.setVisibility(View.VISIBLE);
 
         ScrollView termScroll = new ScrollView(this);
         term = new TerminalView(this);
@@ -163,7 +176,12 @@ public class TermuxActivity extends Activity {
         }));
         shortcuts.addView(btn("CLEAR", new View.OnClickListener() {
             public void onClick(View v) {
-                if (session != null) session.send("clear\n");
+                if (session != null && session.isConnected()) {
+                    session.send("clear\n");
+                } else {
+                    TermuxConsole.clear();
+                    if (term != null) term.reset();
+                }
             }
         }));
         shortcuts.addView(btn("EXIT", new View.OnClickListener() {
@@ -184,6 +202,20 @@ public class TermuxActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refresh();
+        // Render the shared console history, then follow live appends. This makes
+        // the panel the place to review agent Termux activity (no jumping to the
+        // real Termux app).
+        if (term != null) {
+            term.reset();
+            term.feed(TermuxConsole.snapshot());
+        }
+        TermuxConsole.addSink(sink);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        TermuxConsole.removeSink(sink);
     }
 
     private void refresh() {
@@ -247,18 +279,20 @@ public class TermuxActivity extends Activity {
 
     private void testConnection() {
         status.setText("testing…");
+        final String cmd = "echo SVN_TERMUX_OK; id; uname -a";
+        TermuxConsole.command(cmd);
         new Thread(new Runnable() {
             public void run() {
-                final String[] r = TermuxManager.runShellSync(
-                        TermuxActivity.this, "echo SVN_TERMUX_OK; id; uname -a", 20000);
+                final String[] r = TermuxManager.runShellSync(TermuxActivity.this, cmd, 20000);
+                final String out = (r[1] == null ? "" : r[1].trim());
+                final String err = (r[2] == null ? "" : r[2].trim());
+                final String em = (r[3] == null ? "" : r[3].trim());
+                TermuxConsole.result(r[0], r[1], r[2], r[3]);
                 ui.post(new Runnable() {
                     public void run() {
-                        String out = (r[1] == null ? "" : r[1].trim());
-                        String err = (r[2] == null ? "" : r[2].trim());
-                        String em = (r[3] == null ? "" : r[3].trim());
-                        if (out.contains("SVN_TERMUX_OK")) {
-                            Toast.makeText(TermuxActivity.this, "OK: " + out.replace('\n', ' '), Toast.LENGTH_LONG).show();
-                        } else {
+                        boolean ok = out.contains("SVN_TERMUX_OK");
+                        status.setText(ok ? "test: OK" : "test: FAILED");
+                        if (!ok) {
                             Toast.makeText(TermuxActivity.this,
                                     "failed: " + (em.isEmpty() ? (err.isEmpty() ? out : err) : em),
                                     Toast.LENGTH_LONG).show();
@@ -280,7 +314,7 @@ public class TermuxActivity extends Activity {
             return;
         }
         termBlock.setVisibility(View.VISIBLE);
-        term.feed("\n[svn-agent] starting Termux session on 127.0.0.1:" + TERMUX_PORT + " …\n");
+        TermuxConsole.append("\n[svn-agent] starting Termux session on 127.0.0.1:" + TERMUX_PORT + " ...\n");
         if (session != null) {
             session.stopServer();
             session.stop();
@@ -291,17 +325,14 @@ public class TermuxActivity extends Activity {
             public void run() {
                 boolean ok = session.start(TERMUX_PORT, new TermuxSession.Listener() {
                     public void onOutput(final byte[] data, final int len) {
-                        ui.post(new Runnable() {
-                            public void run() {
-                                term.feed(data, len);
-                            }
-                        });
+                        TermuxConsole.append(new String(data, 0, len,
+                                java.nio.charset.StandardCharsets.UTF_8));
                     }
 
                     public void onClosed(final String reason) {
+                        TermuxConsole.append("\n[session closed: " + reason + "]\n");
                         ui.post(new Runnable() {
                             public void run() {
-                                term.feed("\n[session closed: " + reason + "]\n");
                                 refreshStatus();
                             }
                         });
@@ -348,18 +379,11 @@ public class TermuxActivity extends Activity {
             return;
         }
         termBlock.setVisibility(View.VISIBLE);
-        term.feed("\n$ " + cmd + "\n");
+        TermuxConsole.command(cmd);
         new Thread(new Runnable() {
             public void run() {
-                final String[] r = TermuxManager.runShellSync(TermuxActivity.this, cmd, 120000);
-                ui.post(new Runnable() {
-                    public void run() {
-                        if (r[1] != null && r[1].length() > 0) term.feed(r[1]);
-                        if (r[2] != null && r[2].length() > 0) term.feed(r[2]);
-                        if (r[3] != null && r[3].length() > 0) term.feed("[error: " + r[3] + "]\n");
-                        term.feed("[exit " + r[0] + "]\n");
-                    }
-                });
+                String[] r = TermuxManager.runShellSync(TermuxActivity.this, cmd, 120000);
+                TermuxConsole.result(r[0], r[1], r[2], r[3]);
             }
         }).start();
     }

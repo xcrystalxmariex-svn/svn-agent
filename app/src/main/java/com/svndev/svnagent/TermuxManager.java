@@ -185,7 +185,9 @@ public final class TermuxManager {
             }
             i.putExtra(EXTRA_BACKGROUND, background);
             i.putExtra(EXTRA_COMMAND_LABEL, "SVN Agent");
-            i.putExtra(EXTRA_SESSION_ACTION, "0");
+            // 3 = KEEP_CURRENT_SESSION_AND_DONT_OPEN_ACTIVITY. Without this, Termux
+            // launches its own UI on every command (the "screen jumps to Termux" flux).
+            i.putExtra(EXTRA_SESSION_ACTION, "3");
             if (pi != null) {
                 i.putExtra(EXTRA_PENDING_INTENT, pi);
             }
@@ -209,7 +211,7 @@ public final class TermuxManager {
         if (!hasRunCommandPermission(ctx)) {
             return new String[]{"-1", "", "", "Termux RUN_COMMAND permission not granted"};
         }
-        return runCommandSync(ctx, SHELL, new String[]{"-c", command}, null, timeoutMs);
+        return runCommandSync(ctx, SHELL, new String[]{"-c", command}, HOME, timeoutMs);
     }
 
     /** Blocking RUN_COMMAND with a resolved {@code path} + {@code args}. */
@@ -227,7 +229,10 @@ public final class TermuxManager {
                 latch.countDown();
             }
         };
-        if (!runCommand(ctx, path, args, null, false, cb)) {
+        // background=true => APP_SHELL runner: no terminal session is created, so
+        // Termux's UI never comes to the foreground (no screen "bebop"); stdout,
+        // stderr and exit code are still returned via the result pending intent.
+        if (!runCommand(ctx, path, args, workdir, true, cb)) {
             return new String[]{"-1", "", "", "failed to start RUN_COMMAND"};
         }
         try {
