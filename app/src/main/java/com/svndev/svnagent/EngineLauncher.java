@@ -38,13 +38,24 @@ public final class EngineLauncher {
         void onOutput(String chunk);
     }
 
+    /** Notified (on the waiter thread) when the engine process exits. */
+    public interface ExitListener {
+        void onExit();
+    }
+
     private Process proc;
     private OutputStream stdin;
     private volatile boolean running;
     private volatile Sink sink;
+    private volatile ExitListener exitListener;
 
     public boolean isRunning() {
         return running;
+    }
+
+    /** Register a listener notified once whenever the engine process exits. */
+    public void setExitListener(ExitListener l) {
+        this.exitListener = l;
     }
 
     /** Kill stale engine processes from earlier launches (shell, clean env). */
@@ -100,6 +111,12 @@ public final class EngineLauncher {
                 }
                 running = false;
                 emit("\r\n[engine exited]\r\n");
+                ExitListener l = exitListener;
+                if (l != null) {
+                    try {
+                        l.onExit();
+                    } catch (Throwable ignored) {}
+                }
             }
         }, "engine-wait");
         waiter.setDaemon(true);
@@ -194,6 +211,9 @@ public final class EngineLauncher {
     }
 
     private void emit(String s) {
+        // Always buffer to the shared console so the engine's output survives
+        // Activity teardown; additionally fan out to any attached sink.
+        EngineConsole.append(s);
         Sink sk = sink;
         if (sk != null) sk.onOutput(s);
     }

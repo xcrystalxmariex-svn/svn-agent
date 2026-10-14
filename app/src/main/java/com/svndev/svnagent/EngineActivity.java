@@ -2,7 +2,6 @@ package com.svndev.svnagent;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
-import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -30,7 +29,6 @@ import rikka.shizuku.Shizuku;
 public class EngineActivity extends Activity {
 
     private static final String SHIZUKU_PKG = "moe.shizuku.privileged.api";
-    private static final String C = "svnagent";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private TerminalView terminal;
@@ -43,6 +41,16 @@ public class EngineActivity extends Activity {
     private final EngineLauncher launcher = EngineLauncher.get();
     private EngineInstaller installer;
     private boolean requestedOnce = false;
+
+    /** Live bridge from the shared {@link EngineConsole} into our terminal view. */
+    private final EngineConsole.Sink consoleSink = new EngineConsole.Sink() {
+        @Override
+        public void onAppend(final String text) {
+            handler.post(new Runnable() {
+                @Override public void run() { terminal.feed(text); }
+            });
+        }
+    };
 
     private final Shizuku.OnRequestPermissionResultListener permListener =
             new Shizuku.OnRequestPermissionResultListener() {
@@ -62,6 +70,17 @@ public class EngineActivity extends Activity {
         // Must be built after attach: getApplicationContext() is null in the ctor.
         installer = new EngineInstaller(this);
         buildUi();
+        requestNotificationPermission();
+    }
+
+    /** Android 13+ needs runtime permission to show the engine's ongoing notification. */
+    private void requestNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            String perm = "android.permission.POST_NOTIFICATIONS";
+            if (checkSelfPermission(perm) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[] { perm }, 4902);
+            }
+        }
     }
 
     private void buildUi() {
@@ -161,34 +180,20 @@ public class EngineActivity extends Activity {
         try {
             Shizuku.addRequestPermissionResultListener(permListener);
         } catch (Throwable ignored) {}
+        // Render everything the engine (background service) logged while we were
+        // away, then follow live output.
+        terminal.feed(EngineConsole.snapshot());
+        EngineConsole.addSink(consoleSink);
         proceed();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        EngineConsole.removeSink(consoleSink);
         try {
             Shizuku.removeRequestPermissionResultListener(permListener);
         } catch (Throwable ignored) {}
-    }
-
-    private int enginePort() {
-        String p = getSharedPreferences(C, Context.MODE_PRIVATE).getString(SettingsActivity.KEY_ENGINE_PORT, "");
-        try {
-            return Integer.parseInt(p.trim());
-        } catch (Exception e) {
-            return NodeMobile.DEFAULT_ENGINE_PORT;
-        }
-    }
-
-    private int localMcpPort() {
-        String p = getSharedPreferences(C, Context.MODE_PRIVATE)
-                .getString(SettingsActivity.KEY_LOCAL_MCP_PORT, "4097");
-        try {
-            return Integer.parseInt(p.trim());
-        } catch (Exception e) {
-            return 4097;
-        }
     }
 
     /** arm64 check — the embedded engine bundle only ships aarch64. */
@@ -235,7 +240,7 @@ public class EngineActivity extends Activity {
             installAsync();
             return;
         }
-        launchAsync();
+        startEngineService();
     }
 
     private void installAsync() {
@@ -270,7 +275,7 @@ public class EngineActivity extends Activity {
                         @Override public void run() {
                             progress.setVisibility(View.GONE);
                             hideOverlay();
-                            launchAsync();
+                            startEngineService();
                         }
                     });
                 } catch (final IOException e) {
@@ -288,77 +293,51 @@ public class EngineActivity extends Activity {
         }, "engine-install").start();
     }
 
-    private void launchAsync() {
+    /**
+     * Hand the engine over to the foreground {@link EngineService}. The service
+     * owns the launch from here on, so the engine keeps running (and keeps its
+     * session) when this Activity is backgrounded or destroyed. All output is
+     * mirrored into {@link EngineConsole}, which we already subscribed to.
+     */
+    private void startEngineService() {
         hideOverlay();
-        final int port = enginePort();
-        terminal.feed("SVN // launching engine (web, port " + port + ")…\r\n");
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    terminalPost(installer.refreshResolver() + "\r\n");
-                } catch (Throwable t) {
-                    terminalPost("resolver refresh skipped: " + t.getMessage() + "\r\n");
-                }
-                // Diagnostic: test the engine's actual DNS + outbound path.
-                // Runs concurrently so it never delays startup.
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        terminalPost("SVN // net check…\r\n");
-                        terminalPost(launcher.probe("models.dev"));
-                    }
-                }, "netprobe").start();
-
-                // App-hosted local MCP server (device tools) + the MCP config the
-                // engine reads via OPENCODE_CONFIG (remote servers + local tools).
-                String localUrl = null;
-                try {
-                    localUrl = LocalMcpServer.get().start(EngineActivity.this, localMcpPort());
-                    terminalPost("SVN // local tools: "
-                            + (localUrl == null ? "unavailable" : localUrl) + "\r\n");
-                } catch (Throwable t) {
-                    terminalPost("SVN // local tools failed: " + t.getMessage() + "\r\n");
-                }
-                try {
-                    McpConfigWriter.write(EngineActivity.this, localUrl);
-                } catch (Throwable t) {
-                    terminalPost("SVN // mcp config write failed: " + t.getMessage() + "\r\n");
-                }
-
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        launchEngine(port);
-                    }
-                });
-            }
-        }, "engine-prelaunch").start();
-    }
-
-    private void launchEngine(int port) {
+        if (launcher.isRunning()) {
+            terminal.feed("SVN // engine running (background service)\r\n");
+        }
+        maybeRequestBatteryExemption();
         try {
-            launcher.launch(port, new EngineLauncher.Sink() {
-                @Override
-                public void onOutput(final String chunk) {
-                    handler.post(new Runnable() {
-                        @Override public void run() { terminal.feed(chunk); }
-                    });
-                }
-            });
-        } catch (final IOException e) {
-            terminal.feed("\r\nFATAL: " + e.getMessage() + "\r\n");
-            showOverlay("Engine launch failed:\n" + e.getMessage(), "RETRY",
+            EngineService.start(this);
+        } catch (Throwable t) {
+            terminal.feed("\r\nFATAL: " + t.getMessage() + "\r\n");
+            showOverlay("Engine start failed:\n" + t.getMessage(), "RETRY",
                     new View.OnClickListener() {
                         @Override public void onClick(View v) { proceed(); }
                     });
         }
     }
 
-    private void terminalPost(final String s) {
-        handler.post(new Runnable() {
-            @Override public void run() { terminal.feed(s); }
-        });
+    /**
+     * The engine must keep running while the app is in the background. A
+     * foreground service handles stock Android, but aggressive OEM power
+     * managers can still freeze it — ask once to be exempted from battery
+     * optimization (Doze/App Standby).
+     */
+    private void maybeRequestBatteryExemption() {
+        try {
+            android.content.SharedPreferences p = getSharedPreferences("svnagent", MODE_PRIVATE);
+            if (p.getBoolean("asked_battery", false)) {
+                return;
+            }
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+            if (pm == null || pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                p.edit().putBoolean("asked_battery", true).apply();
+                return;
+            }
+            p.edit().putBoolean("asked_battery", true).apply();
+            Intent i = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            i.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(i);
+        } catch (Throwable ignored) {}
     }
 
     private void showOverlay(String text, String actionLabel, View.OnClickListener action) {

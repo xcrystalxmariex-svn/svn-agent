@@ -141,6 +141,35 @@ Flow (`ENGINE` cell in the drawer):
    password breaks the page's own async API calls (the WebView answers the
    main-frame challenge but not the fetch/SSE ones → "Cannot connect to API").
 
+### Background persistence (foreground service)
+
+The engine is owned by **`EngineService`**, a foreground service — *not* by an
+Activity. This is what keeps it alive when you leave the app.
+
+Why it's needed: the engine is spawned via Shizuku and its stdout/stderr are
+piped back into the app process. Without a foreground service Android free-runs
+the app in the background and eventually kills the process (cached-app reclaim),
+which tears down `EngineLauncher` (a process-wide singleton) and the pipes — so
+the engine dies and the next visit has to relaunch it, losing the session.
+
+- `EngineActivity` handles **onboarding only** (Shizuku, permission, download,
+  staging). Once staged it just calls `EngineService.start(ctx)` and then
+  **observes** the run: it renders `EngineConsole.snapshot()` and subscribes to
+  live output. It never owns the launch.
+- `EngineService` does the prelaunch (resolver refresh, net probe, local MCP
+  server + MCP config) and the launch, mirroring all output into the shared
+  **`EngineConsole`** ring buffer. It shows an ongoing "Engine running"
+  notification and returns `START_STICKY`.
+- If the engine exits unexpectedly the service relaunches it automatically
+  (bounded, `MAX_RESTARTS`) while the service is alive. Explicit teardown is
+  `EngineService.stop(ctx)`.
+- First run asks once for a **battery-optimization exemption** — the foreground
+  service covers stock Android, but aggressive OEM power managers can still
+  freeze a backgrounded app.
+
+Net effect: open the engine once, leave the app, come back — the engine (and its
+session) is still there; nothing to restart.
+
 ### Hosting the bundle
 
 The runtime tarball is hosted on the **`dist` branch** of this repo (not an
@@ -256,6 +285,15 @@ everything to filesDir/runtime on first run and chmod +x the binaries.
 Newest first. Each entry is a commit on `main`; `old` holds the state before
 the MCP/Tools work.
 
+- **engine: background persistence via foreground service** — the engine used to
+  die whenever the app was backgrounded (Android reclaimed the process, taking
+  `EngineLauncher`'s pipes with it). New **`EngineService`** (foreground, ongoing
+  notification, `START_STICKY`) now owns prelaunch + launch and binds no UI, so
+  it survives leaving the app; `EngineActivity` only observes. Added
+  **`EngineConsole`** (shared ring buffer) so output survives Activity teardown
+  and is re-rendered on return, a bounded auto-relaunch if the engine exits, and
+  a one-time **battery-optimization exemption** prompt. `OpenCodeService` is the
+  legacy stub (superseded).
 - **termux: local Linux shell bridge + agent tool** — new **TERMUX** drawer
   cell. Detect/install Termux (F-Droid), grant `com.termux.permission.RUN_COMMAND`,
   and start an interactive in-app terminal backed by a real Termux shell
