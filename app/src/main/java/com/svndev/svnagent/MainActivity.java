@@ -122,6 +122,14 @@ public class MainActivity extends Activity {
             }
         });
 
+        addItem("MCP/TOOLS", "servers + device tools", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent i = new Intent(MainActivity.this, McpToolsActivity.class);
+                startActivity(i);
+            }
+        });
+
         addItem("STATUS", "agent health readout", new View.OnClickListener() {
             @Override
             public void onClick(View v) {

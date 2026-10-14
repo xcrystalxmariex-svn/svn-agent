@@ -30,6 +30,7 @@ public class SettingsActivity extends Activity {
     public static final String KEY_RUNTIME_URL = "runtime_url";
     public static final String KEY_LIBNODE_URL = "libnode_url";
     public static final String KEY_ENGINE_PORT = "engine_port";
+    public static final String KEY_LOCAL_MCP_PORT = "local_mcp_port";
     public static final String KEY_ENGINE_URL = "engine_url";
 
     /** Self-contained aarch64 runtime bundle, hosted on the repo's dist branch. */

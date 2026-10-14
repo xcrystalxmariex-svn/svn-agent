@@ -57,6 +57,8 @@ public final class EngineInstaller {
     public static final String RESOLV = WORKSPACE + "/etc/resolv.conf";
     public static final String HOME = WORKSPACE + "/home";
     public static final String TMP = WORKSPACE + "/tmp";
+    /** App-managed opencode config (mcp servers + local tools), via OPENCODE_CONFIG. */
+    public static final String MCP_CONFIG = WORKSPACE + "/etc/mcp.json";
 
     private static final String SH = "/system/bin/sh";
 
@@ -174,6 +176,8 @@ public final class EngineInstaller {
                 "chmod 755 \"" + BIN + "\" \"" + SHIM + "\"; " +
                 "chmod -R 755 \"$W/glibc\" 2>/dev/null; " +
                 "echo '" + STAMP + "' > \"$W/STAMP\"; " +
+                "mkdir -p \"$W/etc\"; " +
+                "echo '{\"mcp\":{}}' > \"$W/etc/mcp.json\"; " +
                 "ls -l " + BIN + "; " +
                 "echo STAGE_OK";
         String out = run(SH, "-c", script);

@@ -181,6 +181,16 @@ public class EngineActivity extends Activity {
         }
     }
 
+    private int localMcpPort() {
+        String p = getSharedPreferences(C, Context.MODE_PRIVATE)
+                .getString(SettingsActivity.KEY_LOCAL_MCP_PORT, "4097");
+        try {
+            return Integer.parseInt(p.trim());
+        } catch (Exception e) {
+            return 4097;
+        }
+    }
+
     /** arm64 check — the embedded engine bundle only ships aarch64. */
     private static boolean isArm64() {
         for (String abi : android.os.Build.SUPPORTED_ABIS) {
@@ -299,6 +309,23 @@ public class EngineActivity extends Activity {
                         terminalPost(launcher.probe("models.dev"));
                     }
                 }, "netprobe").start();
+
+                // App-hosted local MCP server (device tools) + the MCP config the
+                // engine reads via OPENCODE_CONFIG (remote servers + local tools).
+                String localUrl = null;
+                try {
+                    localUrl = LocalMcpServer.get().start(EngineActivity.this, localMcpPort());
+                    terminalPost("SVN // local tools: "
+                            + (localUrl == null ? "unavailable" : localUrl) + "\r\n");
+                } catch (Throwable t) {
+                    terminalPost("SVN // local tools failed: " + t.getMessage() + "\r\n");
+                }
+                try {
+                    McpConfigWriter.write(EngineActivity.this, localUrl);
+                } catch (Throwable t) {
+                    terminalPost("SVN // mcp config write failed: " + t.getMessage() + "\r\n");
+                }
+
                 handler.post(new Runnable() {
                     @Override
                     public void run() {

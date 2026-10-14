@@ -50,6 +50,20 @@ agent runs on-device inside the app.
   `engine serve --hostname 127.0.0.1 --port 4096` via `Shizuku.newProcess`
   → stream stdout/stderr into the terminal view. See `ShizukuHelper`,
   `EngineInstaller`, `EngineLauncher`.
+- `app/src/main/java/com/svndev/svnagent/McpToolsActivity.java`
+  **MCP/TOOLS** screen: remote MCP servers (toggle + cached tool sublist) and
+  on-device local tools (toggle). See `AddServerActivity` / `AddToolActivity`.
+- `app/src/main/java/com/svndev/svnagent/McpStore.java`
+  JSON persistence for servers + local tools (`filesDir/mcp.json`); renders the
+  opencode `mcp` block via `enabledServersAsMcp()`.
+- `app/src/main/java/com/svndev/svnagent/McpClient.java`
+  Remote MCP client (`initialize` → `tools/list`) over JSON/SSE HTTP.
+- `app/src/main/java/com/svndev/svnagent/McpConfigWriter.java`
+  Writes `etc/mcp.json` into the workspace via Shizuku for `OPENCODE_CONFIG`.
+- `app/src/main/java/com/svndev/svnagent/LocalMcpServer.java`
+  App-hosted localhost MCP server that serves the enabled `DeviceTools`.
+- `app/src/main/java/com/svndev/svnagent/DeviceTools.java`
+  Catalog of on-device tool definitions (device functions + installed apps).
 - `app/src/main/java/com/svndev/svnagent/NodeMobile.java` (legacy/optional)
   In-process nodejs-mobile engine. **Disabled in `app/build.gradle`** (the
   NDK/CMake wiring is commented out) because the Shizuku path needs no NDK.
@@ -113,6 +127,28 @@ Notes:
 - `app/src/main/assets/opencode_project/**` and `tools/build_opencode_bundle.sh`
   are the (superseded) bundled-JS experiment; opencode is a native Bun binary
   and is not bundleable as plain JS.
+
+## MCP / TOOLS
+
+The drawer's **MCP/TOOLS** cell manages what the agent can reach beyond the
+model:
+
+- **MCP servers** — remote HTTP MCP endpoints (like `https://svn-dev.online/mcp`).
+  `+ ADD SERVER` opens a form (name / URL / optional auth header + value);
+  `SAVE & TEST` performs the MCP handshake and caches the exposed tools, which
+  are listed under the server. Each server has an enable toggle.
+- **Local tools** — on-device actions (open URL, share, dial, compose SMS,
+  camera, clipboard read/write, vibrate, toast, open settings) plus every
+  launchable app. `+ ADD TOOL` opens a picker; checked tools become
+  agent-callable, each with an enable toggle.
+
+Mechanism: `McpConfigWriter` renders the enabled state into
+`/data/local/tmp/svnagent_opencode/etc/mcp.json` (staged as the shell user via
+Shizuku) and the engine launches with `OPENCODE_CONFIG` pointing at it — opencode
+**merges** it, so the model config is preserved. Enabled local tools are served
+to the engine by `LocalMcpServer`, a dependency-free MCP server the app hosts on
+`http://127.0.0.1:<local_mcp_port>/mcp`, registered in the config as
+`svn_local`. Toggles take effect on the **next engine start**.
 
 ## Where to put the runtimes (IMPORTANT)
 

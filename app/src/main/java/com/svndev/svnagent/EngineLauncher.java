@@ -115,6 +115,10 @@ public final class EngineLauncher {
                 "CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV,
                 "HOME=" + EngineInstaller.HOME,
                 "TMPDIR=" + EngineInstaller.TMP,
+                // App-managed MCP config (remote servers + local tools). opencode
+                // merges this on top of the global config, so the model config
+                // is preserved. Written by McpConfigWriter before each launch.
+                "OPENCODE_CONFIG=" + EngineInstaller.MCP_CONFIG,
                 "PATH=/system/bin"
         };
     }
