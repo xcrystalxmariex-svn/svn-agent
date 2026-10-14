@@ -114,6 +114,14 @@ public class MainActivity extends Activity {
             }
         });
 
+        addItem("VOICE", "device assistant", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent i = new Intent(MainActivity.this, VoiceAssistantActivity.class);
+                startActivity(i);
+            }
+        });
+
         addItem("⚙ SETTINGS", "config, runtime, reset", new View.OnClickListener() {
             @Override
             public void onClick(View v) {

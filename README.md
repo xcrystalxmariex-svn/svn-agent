@@ -211,36 +211,20 @@ to the engine by `LocalMcpServer`, a dependency-free MCP server the app hosts on
 `http://127.0.0.1:<local_mcp_port>/mcp`, registered in the config as
 `svn_local`. Toggles take effect on the **next engine start**.
 
-## TERMUX
-
-The drawer's **TERMUX** cell connects the agent to a locally-installed
-[Termux](https://f-droid.org/packages/com.termux/) app — a real Linux
-environment on the phone. This is the agent's escape hatch for anything the
-sandboxed app can't do: local file access, `ssh`, `git`, `pkg install`, scripts,
-and even `adb`/`rish` when wireless debugging is looped back.
-
-One-time setup (the cell walks you through it):
-
-1. **INSTALL TERMUX** (F-Droid; also from f-droid.org).
-2. In Termux, allow external apps and reload:
-   `echo allow-external-apps=true >> ~/.termux/termux.properties && termux-reload-settings`
-2. **GRANT RUN_COMMAND PERMISSION** in this panel.
-3. **TEST CONNECTION**, then **START / RESTART SESSION**.
-
-How it works: two apps can't share a uid, so the only bridge is Termux's
-`com.termux.RUN_COMMAND` service (`TermuxManager` sends the intent, attaches a
-`Result` `PendingIntent`, and reads back exit code + stdout/stderr). **One-shot**
-commands go through `TermuxManager.runShellSync`. The **interactive terminal**
-runs `socat` inside Termux to expose a login shell on `127.0.0.1:9001`
-(auto-installs `socat` on first run); the app connects with a plain socket and
-pipes it into `TerminalView` (`TermuxSession`).
-
-The agent gets it as a local tool: **`termux:run`** (category *Termux*) — enable
-it in **MCP/TOOLS → + ADD TOOL**. It runs a shell command in Termux and returns
-the output, so the agent can do files, SSH, `pkg`, and (with wireless debugging
-looped back) `adb`/`rish` without leaving the app.
-
+## VOICE
+ 
+The drawer's **VOICE** cell provides a voice-controlled device assistant, using the **local on-device engine** as its brain.
+ 
+- **Wake Word**: Toggle on/off. When enabled, a foreground service (`VoiceWakeService`) continuously listens for a wake phrase (default "hey svn"). On detection, it launches the assistant in live-call mode.
+- **Agent Voice**: A voice picker with preview allows selecting the system TTS voice used for agent replies.
+- **Live Voice Call**: An interactive conversation interface. It features:
+    - **Streaming Transcript**: A chat box showing "You: ..." and "Agent: ..." in real-time.
+    - **PTT (Push-to-Talk)**: A hold-to-talk button for explicit voice input.
+    - **Voice Brain**: Communicates with the local engine via a `/session` API, allowing the agent to use all available on-device tools (including Termux).
+- **Permissions**: Requires `RECORD_AUDIO` and `FOREGROUND_SERVICE_MICROPHONE`.
+ 
 ## Where to put the runtimes (IMPORTANT)
+
 
 The APK expects these to exist under `app/src/main/assets/runtime/` before
 the signed APK is built:
@@ -281,11 +265,13 @@ everything to filesDir/runtime on first run and chmod +x the binaries.
    it as a bundled asset.
 
 ## Change log
-
+ 
 Newest first. Each entry is a commit on `main`; `old` holds the state before
 the MCP/Tools work.
-
+ 
+- **voice: add voice-controlled device assistant** — new **VOICE** drawer cell. Integrated wake-word spotting via a foreground service (`VoiceWakeService`), TTS voice selection, and a live voice-call UI with PTT and streaming transcript. Brain is the local on-device engine (accessed via `/session` API), enabling voice-triggered device control (incl. Termux).
 - **engine: background persistence via foreground service** — the engine used to
+
   die whenever the app was backgrounded (Android reclaimed the process, taking
   `EngineLauncher`'s pipes with it). New **`EngineService`** (foreground, ongoing
   notification, `START_STICKY`) now owns prelaunch + launch and binds no UI, so
