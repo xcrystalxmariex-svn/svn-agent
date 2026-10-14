@@ -134,9 +134,9 @@ public class TermuxActivity extends Activity {
         ScrollView termScroll = new ScrollView(this);
         term = new TerminalView(this);
         termScroll.addView(term, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(300)));
         termBlock.addView(termScroll, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(300)));
 
         // Ensure the terminal always scrolls to the bottom when new text arrives.
         term.setOnFeedListener(new TerminalView.OnFeedListener() {
@@ -382,6 +382,9 @@ public class TermuxActivity extends Activity {
     private void submitInput() {
         String s = input.getText().toString();
         input.setText("");
+        if (s.isEmpty()) return;
+
+        TermuxConsole.append("\n> " + s + "\n");
         if (session != null && session.isConnected()) {
             session.send(s + "\n");
         } else {
@@ -400,7 +403,10 @@ public class TermuxActivity extends Activity {
             return;
         }
         termBlock.setVisibility(View.VISIBLE);
-        TermuxConsole.command(cmd);
+        
+        // Echo the command so the user sees it in the output box
+        TermuxConsole.append("\n> " + cmd + "\n");
+        
         new Thread(new Runnable() {
             public void run() {
                 String[] r = TermuxManager.runShellSync(TermuxActivity.this, cmd, 120000);
