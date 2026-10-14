@@ -75,6 +75,35 @@ for s in "$W/glibc/lib/"*.so; do
     [ -n "$target" ] && [ -f "$W/glibc/lib/$target" ] && ln -sf "$target" "$s" || rm -f "$s"
   fi
 done
+# glibc bakes its sysconfdir paths into libc.so.6 (the Termux dir, which does
+# not exist for the shell user). getaddrinfo() reads resolv.conf/nsswitch.conf
+# via internal, non-interposable opens, so the LD_PRELOAD shim CANNOT redirect
+# them — Bun's fetch (which uses getaddrinfo, not c-ares) then fails with
+# "Unable to connect" for every model. Repoint those strings at our workspace.
+say "patching glibc resolver paths -> $WORKSPACE/etc"
+python3 - "$W/glibc/lib/libc.so.6" "$WORKSPACE" <<'PY'
+import sys
+libc, ws = sys.argv[1], sys.argv[2]
+d = bytearray(open(libc, "rb").read())
+old, new = "/data/data/com.termux/files/usr/glibc/etc/", ws + "/etc/"
+for name in ("resolv.conf", "nsswitch.conf", "hosts"):
+    b, n = (old + name).encode(), (new + name).encode()
+    if len(n) > len(b):
+        raise SystemExit("glibc path patch: %s too long for %s" % (n, b))
+    pad, i, hits = len(b) - len(n), 0, 0
+    while True:
+        j = d.find(b, i)
+        if j < 0:
+            break
+        if d[j + len(b):j + len(b) + 1] == b"\x00":   # exact, null-terminated
+            d[j:j + len(b)] = n + b"\x00" * pad
+            hits += 1
+        i = j + 1
+    if hits == 0:
+        raise SystemExit("glibc path patch: no match for %s" % name)
+    print("  %s: %d" % (name, hits))
+open(libc, "wb").write(d)
+PY
 cp "$B/claude-resolvfix.so" "$W/shim/claude-resolvfix.so"
 curl -fsSL https://curl.se/ca/cacert.pem -o "$W/etc/cert.pem"
 printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > "$W/etc/resolv.conf"

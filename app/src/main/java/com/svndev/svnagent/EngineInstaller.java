@@ -61,7 +61,7 @@ public final class EngineInstaller {
     private static final String SH = "/system/bin/sh";
 
     /** Bump whenever the published runtime bundle changes; forces a re-download. */
-    private static final String STAMP = "bundle-v4-netprobe";
+    private static final String STAMP = "bundle-v5-resolvpatch";
 
     public interface Progress {
         void onProgress(long done, long total);
@@ -154,7 +154,11 @@ public final class EngineInstaller {
             throw new IOException("no engine_url configured (Settings)");
         }
 
-        // 1+2) stream: HTTP -> gunzip -> shell "cat > tarball"
+        // 1+2) stream: HTTP -> gunzip -> shell "cat > tarball".
+        // Cache-bust with the STAMP: the raw host caches by full URL, so a
+        // bumped STAMP must fetch fresh bytes — otherwise a stale bundle could
+        // be staged and then stamped as current.
+        if (url.indexOf('?') < 0) url += "?v=" + STAMP;
         log(cb, "downloading runtime bundle…");
         stageTarball(url, cb);
 
