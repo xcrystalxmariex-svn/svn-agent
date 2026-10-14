@@ -48,11 +48,15 @@ public final class TermuxManager {
     public static final String EXTRA_COMMAND_LABEL = "com.termux.RUN_COMMAND_COMMAND_LABEL";
     public static final String EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT";
 
-    public static final String EXTRA_RESULT_BUNDLE = "com.termux.RUN_COMMAND_RESULT_BUNDLE";
-    public static final String EXTRA_RESULT_EXIT_CODE = "com.termux.RUN_COMMAND_RESULT_EXIT_CODE";
-    public static final String EXTRA_RESULT_STDOUT = "com.termux.RUN_COMMAND_RESULT_STDOUT";
-    public static final String EXTRA_RESULT_STDERR = "com.termux.RUN_COMMAND_RESULT_STDERR";
-    public static final String EXTRA_RESULT_ERRMSG = "com.termux.RUN_COMMAND_RESULT_ERRMSG";
+    // Termux returns RUN_COMMAND results via the plugin result mechanism: the
+    // PendingIntent broadcast carries one Bundle extra keyed "result", whose
+    // members use the unprefixed plugin keys (see TermuxConstants.TERMUX_SERVICE
+    // EXTRA_PLUGIN_RESULT_BUNDLE* and TermuxPluginUtils.setPluginResultPendingIntentVariables).
+    public static final String EXTRA_RESULT_BUNDLE = "result";
+    public static final String EXTRA_RESULT_EXIT_CODE = "exitCode";
+    public static final String EXTRA_RESULT_STDOUT = "stdout";
+    public static final String EXTRA_RESULT_STDERR = "stderr";
+    public static final String EXTRA_RESULT_ERRMSG = "errmsg";
 
     /** Termux's Linux prefix and home (stable locations inside the Termux sandbox). */
     public static final String PREFIX = "/data/data/com.termux/files/usr";
