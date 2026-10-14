@@ -51,6 +51,17 @@ cp "$(dirname "$0")/fix_resolv.c" "$B/fix_resolv.c"
 aarch64-linux-gnu-gcc -fPIC -O2 -fno-stack-protector -c "$B/fix_resolv.c" -o "$B/fix_resolv.o"
 aarch64-linux-gnu-ld -shared -o "$B/claude-resolvfix.so" "$B/fix_resolv.o" -L"$GL/lib" -l:libc.so.6 -l:libdl.so.2
 
+# --- 3b. netprobe (on-device DNS/outbound self-test) ------------------------
+# Runs under the exact engine env (glibc loader + resolvfix shim) so its report
+# reflects what the engine sees. Interpreter is baked to the on-device loader,
+# same as opencode.
+say "building netprobe"
+cp "$(dirname "$0")/probe.c" "$B/probe.c"
+aarch64-linux-gnu-gcc -O2 -fno-stack-protector -o "$B/netprobe" "$B/probe.c" \
+  "$GL/lib/ld-linux-aarch64.so.1" -L"$GL/lib" -l:libc.so.6 \
+  -Wl,--dynamic-linker="$WORKSPACE/glibc/lib/ld-linux-aarch64.so.1" \
+  -Wl,-rpath,"$WORKSPACE/glibc/lib"
+
 # --- assemble the workspace --------------------------------------------------
 say "assembling workspace"
 W="$B/ws"; mkdir -p "$W/glibc" "$W/shim" "$W/etc" "$W/home" "$W/tmp"
@@ -71,10 +82,11 @@ printf 'hosts: files dns\n' > "$W/etc/nsswitch.conf"
 printf '127.0.0.1 localhost\n::1 localhost ip6-localhost ip6-loopback\n' > "$W/etc/hosts"
 cp "$OC" "$W/opencode"
 patchelf --set-interpreter "$WORKSPACE/glibc/lib/ld-linux-aarch64.so.1" "$W/opencode"
-chmod 755 "$W/opencode" "$W/shim/claude-resolvfix.so"
+cp "$B/netprobe" "$W/netprobe"
+chmod 755 "$W/opencode" "$W/netprobe" "$W/shim/claude-resolvfix.so"
 
 say "packing $OUT"
-( cd "$W" && tar -I 'pigz -1' -cf "$OUT" opencode glibc shim etc home tmp )
+( cd "$W" && tar -I 'pigz -1' -cf "$OUT" opencode netprobe glibc shim etc home tmp )
 ls -lh "$OUT"
 echo
 say "publish to the dist branch:"

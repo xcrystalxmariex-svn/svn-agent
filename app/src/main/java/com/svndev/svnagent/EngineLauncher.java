@@ -76,15 +76,7 @@ public final class EngineLauncher {
                 "--hostname", "127.0.0.1",
                 "--port", String.valueOf(port)
         };
-        final String[] env = {
-                "LD_PRELOAD=" + EngineInstaller.SHIM,
-                "LD_LIBRARY_PATH=" + EngineInstaller.GLIBC_LIB,
-                "SSL_CERT_FILE=" + EngineInstaller.CERT,
-                "CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV,
-                "HOME=" + EngineInstaller.HOME,
-                "TMPDIR=" + EngineInstaller.TMP,
-                "PATH=/system/bin"
-        };
+        final String[] env = engineEnv();
         // NOTE: no OPENCODE_SERVER_PASSWORD — binding is localhost-only and a
         // password makes the page's own async API calls fail auth (shows up as
         // "Cannot connect to API" in the UI).
@@ -112,6 +104,52 @@ public final class EngineLauncher {
         }, "engine-wait");
         waiter.setDaemon(true);
         waiter.start();
+    }
+
+    /** The isolated environment the glibc engine (and probes) run under. */
+    private static String[] engineEnv() {
+        return new String[] {
+                "LD_PRELOAD=" + EngineInstaller.SHIM,
+                "LD_LIBRARY_PATH=" + EngineInstaller.GLIBC_LIB,
+                "SSL_CERT_FILE=" + EngineInstaller.CERT,
+                "CLAUDE_RESOLV_REDIRECT=" + EngineInstaller.RESOLV,
+                "HOME=" + EngineInstaller.HOME,
+                "TMPDIR=" + EngineInstaller.TMP,
+                "PATH=/system/bin"
+        };
+    }
+
+    /**
+     * Run the bundled {@code netprobe} under the exact engine environment to
+     * test DNS + outbound reachability, and return its report. Lets us tell the
+     * user "NETWORK OK" vs "DNS BROKEN" instead of guessing why model calls
+     * fail. Blocking; call off the UI thread.
+     */
+    public String probe(String host) {
+        try {
+            final Process p = Shizuku.newProcess(
+                    new String[] { EngineInstaller.PROBE, host },
+                    engineEnv(), EngineInstaller.WORKSPACE);
+            final StringBuilder sb = new StringBuilder();
+            Thread reader = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        java.io.BufferedReader r = new java.io.BufferedReader(
+                                new java.io.InputStreamReader(p.getInputStream()));
+                        String line;
+                        while ((line = r.readLine()) != null) sb.append(line).append('\n');
+                    } catch (Throwable ignored) {}
+                }
+            });
+            reader.setDaemon(true);
+            reader.start();
+            reader.join(30000);
+            try { p.destroy(); } catch (Throwable ignored) {}
+            return sb.toString();
+        } catch (Throwable t) {
+            return "[probe] could not run: " + t.getMessage() + "\n";
+        }
     }
 
     public void sendLine(String line) {

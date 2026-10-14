@@ -50,6 +50,7 @@ public final class EngineInstaller {
     public static final String WORKSPACE = "/data/local/tmp/svnagent_opencode";
     public static final String TARBALL = "/data/local/tmp/svnagent_opencode.tar";
     public static final String BIN = WORKSPACE + "/opencode";
+    public static final String PROBE = WORKSPACE + "/netprobe";
     public static final String SHIM = WORKSPACE + "/shim/claude-resolvfix.so";
     public static final String GLIBC_LIB = WORKSPACE + "/glibc/lib";
     public static final String CERT = WORKSPACE + "/etc/cert.pem";
@@ -60,7 +61,7 @@ public final class EngineInstaller {
     private static final String SH = "/system/bin/sh";
 
     /** Bump whenever the published runtime bundle changes; forces a re-download. */
-    private static final String STAMP = "bundle-v3-elfmagic";
+    private static final String STAMP = "bundle-v4-netprobe";
 
     public interface Progress {
         void onProgress(long done, long total);
@@ -104,9 +105,11 @@ public final class EngineInstaller {
         } catch (Throwable t) {
             Log.w(TAG, "dns detect: " + t.getMessage());
         }
-        if (servers.isEmpty()) {
-            servers.add("1.1.1.1");
-            servers.add("8.8.8.8");
+        // Device resolvers first — they work even on networks that block public
+        // DNS (the reason the hardcoded 1.1.1.1 fallback alone failed). Public
+        // resolvers are appended as fallbacks; glibc tries them in order.
+        for (String fb : new String[] { "1.1.1.1", "8.8.8.8" }) {
+            if (!servers.contains(fb)) servers.add(fb);
         }
         StringBuilder sb = new StringBuilder("search .\n");
         for (String s : servers) sb.append("nameserver ").append(s).append('\n');

@@ -290,6 +290,15 @@ public class EngineActivity extends Activity {
                 } catch (Throwable t) {
                     terminalPost("resolver refresh skipped: " + t.getMessage() + "\r\n");
                 }
+                // Diagnostic: test the engine's actual DNS + outbound path.
+                // Runs concurrently so it never delays startup.
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        terminalPost("SVN // net check…\r\n");
+                        terminalPost(launcher.probe("models.dev"));
+                    }
+                }, "netprobe").start();
                 handler.post(new Runnable() {
                     @Override
                     public void run() {
