@@ -264,8 +264,8 @@ the MCP/Tools work.
   socat on first use). Adds the `termux:run` **local tool** so the agent can run
   commands in Termux (files, ssh, git, `pkg`, and adb/rish via wireless
   debugging) — it appears under **MCP/TOOLS** local tools. Manifest gains the
-  RUN_COMMAND permission + a `<queries>` entry for `com.termux`. *(not yet
-  device-tested)*
+  RUN_COMMAND permission + package visibility (QUERY_ALL_PACKAGES) so the app can
+  detect Termux. *(not yet device-tested)*
 - **mcp/tools: add MCP servers + on-device local tools sections** — new
   **MCP/TOOLS** drawer cell. Remote HTTP MCP servers (add form with
   name/url/optional auth, `SAVE & TEST` handshake caching the tool list,
