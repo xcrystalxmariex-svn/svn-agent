@@ -51,6 +51,11 @@ public class PersonaImporter {
         return raw.split(",");
     }
 
+    /** Public hook so PersonaManager can register a manually created persona. */
+    public void registerId(String id) {
+        addImported(id);
+    }
+
     public File getHomeDirFor(String id) {
         return new File(ctx.getFilesDir(), "agents/" + id);
     }

@@ -72,6 +72,61 @@ public class ImportAgentActivity extends Activity {
         });
         root.addView(pick, lp(LinearLayout.LayoutParams.MATCH_PARENT, dp(52), 12));
 
+        // ---- manually created personas (no bundle needed) ----
+        TextView personaTitle = new TextView(this);
+        personaTitle.setText("— OR CREATE A PERSONA PROFILE —");
+        personaTitle.setTextColor(0xFF00aa44);
+        personaTitle.setTextSize(11);
+        personaTitle.setTypeface(android.graphics.Typeface.MONOSPACE);
+        root.addView(personaTitle, lp(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT, 8));
+
+        final android.widget.EditText pName = new android.widget.EditText(this);
+        pName.setSingleLine(true);
+        pName.setHint("persona name");
+        pName.setHintTextColor(0xFF005522);
+        pName.setTextColor(0xFF00ff66);
+        pName.setTypeface(android.graphics.Typeface.MONOSPACE);
+        root.addView(pName, lp(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT, 4));
+
+        final android.widget.EditText pModel = new android.widget.EditText(this);
+        pModel.setSingleLine(true);
+        pModel.setHint("ai model (e.g. gpt-4o, gemini-2.0)");
+        pModel.setHintTextColor(0xFF005522);
+        pModel.setTextColor(0xFF00ff66);
+        pModel.setTypeface(android.graphics.Typeface.MONOSPACE);
+        root.addView(pModel, lp(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT, 8));
+
+        TextView create = button("CREATE PERSONA", 0xFF00ff66);
+        create.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String id = PersonaManager.register(ImportAgentActivity.this,
+                        pName.getText().toString(), pModel.getText().toString(), "");
+                status.setText("persona registered: " + id
+                        + " — memory folder auto-assigned via MEMORY backend");
+                new android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed(new Runnable() {
+                            @Override public void run() { refreshAgents(); }
+                        }, 600);
+            }
+        });
+        root.addView(create, lp(LinearLayout.LayoutParams.MATCH_PARENT, dp(46), 8));
+
+        // ---- the "packet" template: hand this to any other AI (Gemini,
+        // Grok, ...) so it can produce an importable persona file ----
+        TextView packet = button("GET PERSONA PACKET TEMPLATE", 0xFF00aa44);
+        packet.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent send = new Intent(Intent.ACTION_SEND);
+                send.setType("text/plain");
+                send.putExtra(Intent.EXTRA_SUBJECT, "SVN Agent persona packet (v1)");
+                send.putExtra(Intent.EXTRA_TEXT, PersonaManager.packetTemplate());
+                startActivity(Intent.createChooser(send, "share persona packet"));
+            }
+        });
+        root.addView(packet, lp(LinearLayout.LayoutParams.MATCH_PARENT, dp(46), 12));
+
         status = new TextView(this);
         status.setText("—");
         status.setTextColor(0xFF00aa44);

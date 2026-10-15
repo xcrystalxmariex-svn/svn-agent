@@ -55,6 +55,7 @@ public class MainActivity extends Activity {
         root.addView(grid, lp(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT, 30));
 
         setContentView(root);
+        UiZoom.apply(this);
 
         if (bootstrap.isReady()) {
             showDrawer();
@@ -119,6 +120,38 @@ public class MainActivity extends Activity {
             public void onClick(View v) {
                 Intent i = new Intent(MainActivity.this, VoiceAssistantActivity.class);
                 startActivity(i);
+            }
+        });
+
+        addItem("AUTHS", "credential vault", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, AuthsActivity.class));
+            }
+        });
+
+        addItem("MEMORY", "agent history + sync", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, MemoryActivity.class));
+            }
+        });
+
+        addItem("ZOOM −", "UI scale " , new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                UiZoom.set(MainActivity.this, UiZoom.get(MainActivity.this) - UiZoom.STEP);
+                status.setText("zoom " + UiZoom.describe(MainActivity.this));
+                recreate();
+            }
+        });
+
+        addItem("ZOOM +", "UI scale", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                UiZoom.set(MainActivity.this, UiZoom.get(MainActivity.this) + UiZoom.STEP);
+                status.setText("zoom " + UiZoom.describe(MainActivity.this));
+                recreate();
             }
         });
 

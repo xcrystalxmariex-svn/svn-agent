@@ -55,6 +55,7 @@ public class VoiceAssistantActivity extends Activity {
     private TextView voiceLabel;
     private TextView callStatus;
     private TextView transcript;
+    private ScrollView transcriptScroll;
     private TextView callButton;
     private TextView pttButton;
 
@@ -135,11 +136,15 @@ public class VoiceAssistantActivity extends Activity {
     // ------------------------------------------------------------------
 
     private void buildUi() {
+        ScrollView page = new ScrollView(this);
+        page.setFillViewport(false);
         this.root = new LinearLayout(this);
         this.root.setOrientation(LinearLayout.VERTICAL);
         this.root.setBackgroundColor(0xFF050b08);
         this.root.setPadding(dp(14), dp(24), dp(14), dp(24));
-        setContentView(this.root);
+        page.addView(this.root);
+        setContentView(page);
+        UiZoom.apply(this);
 
         TextView title = label("[ VOICE // DEVICE ASSISTANT ]", COLOR_FG, 16, true);
         root.addView(title, wrap(dp(4)));
@@ -229,9 +234,16 @@ public class VoiceAssistantActivity extends Activity {
         transcript.setTextSize(12);
         transcript.setTypeface(android.graphics.Typeface.MONOSPACE);
         transcript.setPadding(dp(8), dp(8), dp(8), dp(8));
-        transcript.setBackgroundColor(0xFF031007);
+        transcript.setTextIsSelectable(true);
         transcript.setText("");
-        call.addView(transcript, fullWidth(android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+        // Fixed-height scroll box so a long transcript never pushes the
+        // DISCONNECT / PTT buttons off screen.
+        transcriptScroll = new ScrollView(this);
+        transcriptScroll.setBackgroundColor(0xFF031007);
+        transcriptScroll.addView(transcript, new ScrollView.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        call.addView(transcriptScroll, fullWidth(dp(160)));
 
         callButton = greenButton("START CALL", new View.OnClickListener() {
             @Override public void onClick(View v) {
@@ -321,8 +333,19 @@ public class VoiceAssistantActivity extends Activity {
                 String text = (list != null && !list.isEmpty()) ? list.get(0) : "";
                 boolean ok = text.toLowerCase(Locale.US).contains(
                         wakePhrase.getText().toString().trim().toLowerCase(Locale.US));
-                toast(ok ? "HEARD wake phrase ✓ (\"" + text + "\")" : "heard: \"" + text + "\" (no match)");
                 restoreListener();
+                if (ok) {
+                    // Wake test should end with the agent actually responding,
+                    // not just a toast — proof the whole pipeline hears you.
+                    toast("HEARD wake phrase ✓ (\"" + text + "\")");
+                    if (tts != null && tts.isReady()) {
+                        tts.speak("Wake phrase heard. I'm here.", null);
+                    }
+                    MemoryManager.appendTurn(VoiceAssistantActivity.this,
+                            "default", "You", "[wake] " + text);
+                } else {
+                    toast("heard: \"" + text + "\" (no match)");
+                }
             }
             @Override public void onError(int error) {
                 toast("no speech detected");
@@ -434,6 +457,7 @@ public class VoiceAssistantActivity extends Activity {
             return;
         }
         appendTranscript("You: " + t);
+        MemoryManager.appendTurn(this, "default", "You", t);
         callStatus.setText("thinking…");
         awaitingReply = true;
         EngineBrain.ask(this, t, new EngineBrain.Callback() {
@@ -442,6 +466,8 @@ public class VoiceAssistantActivity extends Activity {
                     @Override public void run() {
                         awaitingReply = false;
                         appendTranscript("Agent: " + reply);
+                        MemoryManager.appendTurn(VoiceAssistantActivity.this,
+                                "default", "Agent", reply);
                         callStatus.setText("speaking…");
                         speaking = true;
                         // Strip markdown/code before TTS so it never reads
@@ -494,6 +520,11 @@ public class VoiceAssistantActivity extends Activity {
     private void appendTranscript(String line) {
         transcriptBuf.append(line).append("\n");
         transcript.setText(transcriptBuf.toString());
+        transcriptScroll.post(new Runnable() {
+            @Override public void run() {
+                transcriptScroll.fullScroll(View.FOCUS_DOWN);
+            }
+        });
     }
 
     // ------------------------------------------------------------------

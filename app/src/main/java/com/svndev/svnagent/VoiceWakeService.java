@@ -176,8 +176,40 @@ public class VoiceWakeService extends Service {
         try {
             startActivity(call);
         } catch (Exception e) {
-            Log.w(TAG, "could not launch assistant: " + e.getMessage());
+            Log.w(TAG, "direct activity start blocked: " + e.getMessage());
         }
+        // Background-start fallback: a heads-up, full-screen notification the
+        // system is allowed to show even when activity launches are blocked
+        // (Android 10+). Tapping it opens the assistant already in call mode.
+        try {
+            postWakeNotification(call);
+        } catch (Exception e) {
+            Log.w(TAG, "wake notification failed: " + e.getMessage());
+        }
+    }
+
+    private void postWakeNotification(Intent call) {
+        String alertChannel = "svnagent_wake_alert";
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel ch = new NotificationChannel(alertChannel,
+                    "SVN Agent wake", NotificationManager.IMPORTANCE_HIGH);
+            ch.setDescription("Wake phrase detected");
+            nm.createNotificationChannel(ch);
+        }
+        int piFlags = PendingIntent.FLAG_UPDATE_CURRENT
+                | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+        PendingIntent pi = PendingIntent.getActivity(this, 1, call, piFlags);
+        Notification.Builder b = (Build.VERSION.SDK_INT >= 26)
+                ? new Notification.Builder(this, alertChannel)
+                : new Notification.Builder(this);
+        b.setSmallIcon(getApplicationInfo().icon)
+                .setContentTitle("SVN Agent")
+                .setContentText("Wake phrase heard — tap to answer")
+                .setAutoCancel(true)
+                .setContentIntent(pi)
+                .setFullScreenIntent(pi, true);
+        nm.notify(0x5E19, b.build());
     }
 
     private final RecognitionListener listener = new RecognitionListener() {
